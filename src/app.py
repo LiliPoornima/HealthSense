@@ -7,6 +7,8 @@ import plotly.express as px
 from streamlit_lottie import st_lottie
 import requests
 from datetime import datetime
+from fpdf import FPDF
+import base64
 
 # ===============================
 # Helper function to load Lottie animations
@@ -20,6 +22,115 @@ def load_lottieurl(url: str):
 # Lottie animation
 lottie_url = "https://assets1.lottiefiles.com/packages/lf20_jcikwtux.json"
 lottie_animation = load_lottieurl(lottie_url)
+
+# ===============================
+# PDF Generation Function
+# ===============================
+def generate_pdf_report(result):
+    """Generate a PDF report of the health assessment"""
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Title
+    pdf.set_font("Arial", "B", 20)
+    pdf.cell(0, 10, "HealthSense - Health Risk Assessment Report", ln=True, align="C")
+    pdf.ln(5)
+    
+    # Date
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 10, f"Assessment Date: {result.get('timestamp', 'N/A')}", ln=True, align="C")
+    pdf.ln(10)
+    
+    # Prediction Result
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Assessment Results", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", "", 12)
+    prediction = result["prediction"]
+    probability = result["probability"]
+    
+    status = "Diseased" if prediction == 1 else "Healthy"
+    pdf.cell(0, 10, f"Status: {status}", ln=True)
+    
+    if probability is not None:
+        risk_percent = probability * 100
+        pdf.cell(0, 10, f"Risk Score: {risk_percent:.1f}%", ln=True)
+        
+        if risk_percent <= 30:
+            risk_level = "Low Risk - Health indicators suggest you are likely healthy"
+        elif 30 < risk_percent <= 70:
+            risk_level = "Moderate Risk - Some health indicators need attention"
+        else:
+            risk_level = "High Risk - Multiple health indicators suggest elevated disease risk"
+        
+        pdf.multi_cell(0, 10, f"Risk Level: {risk_level}")
+    
+    pdf.ln(10)
+    
+    # Health Recommendations
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Health Recommendations", ln=True)
+    pdf.ln(5)
+    
+    user_input = result["user_input"]
+    recommendations = []
+    
+    # Generate recommendations (same logic as in the app)
+    bmi = user_input.get("bmi")
+    if isinstance(bmi, (int, float)) and bmi > 25:
+        recommendations.append("Weight Management: Your BMI is above the healthy range. Consider a balanced diet and regular exercise.")
+    
+    bp = user_input.get("blood_pressure")
+    if isinstance(bp, (int, float)) and bp > 120:
+        recommendations.append("Blood Pressure: Your blood pressure is elevated. Reduce salt intake and manage stress.")
+    
+    exercise = user_input.get("physical_activity")
+    if isinstance(exercise, str) and exercise.lower() in ["low", "sedentary"]:
+        recommendations.append("Physical Activity: Increase your activity. Aim for 30 minutes of exercise daily.")
+    
+    smoking = user_input.get("smoking_status")
+    if isinstance(smoking, str) and smoking.lower() not in ["non-smoker", "never"]:
+        recommendations.append("Smoking Cessation: Quitting smoking is crucial for your health.")
+    
+    if recommendations:
+        pdf.set_font("Arial", "", 11)
+        for i, rec in enumerate(recommendations, 1):
+            pdf.multi_cell(0, 8, f"{i}. {rec}")
+            pdf.ln(2)
+    else:
+        pdf.set_font("Arial", "", 11)
+        pdf.multi_cell(0, 10, "Great job! You're following healthy habits. Keep up the excellent work!")
+    
+    pdf.ln(10)
+    
+    # Key Health Indicators
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Your Health Data Summary", ln=True)
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", "", 10)
+    
+    # Display key metrics
+    key_features = ['age', 'bmi', 'blood_pressure', 'heart_rate', 'smoking_status', 
+                   'physical_activity', 'sleep_hours', 'alcohol_consumption']
+    
+    for feature in key_features:
+        if feature in user_input:
+            value = user_input[feature]
+            label = feature.replace('_', ' ').title()
+            if isinstance(value, (int, float)):
+                pdf.cell(0, 8, f"{label}: {value:.2f}", ln=True)
+            else:
+                pdf.cell(0, 8, f"{label}: {value}", ln=True)
+    
+    pdf.ln(10)
+    
+    # Disclaimer
+    pdf.set_font("Arial", "I", 9)
+    pdf.multi_cell(0, 6, "Disclaimer: This assessment is for informational purposes only and does not replace professional medical advice. Please consult with a healthcare provider for a comprehensive evaluation.")
+    
+    return pdf.output(dest='S').encode('latin-1')
 
 # ===============================
 # Setup paths
@@ -162,6 +273,8 @@ if st.sidebar.button("📊 View History", use_container_width=True):
 
 if st.sidebar.button("🏠 Back to Main", use_container_width=True):
     st.session_state.show_history = False
+    st.session_state.current_page = "input"
+    st.rerun()
 
 st.sidebar.divider()
 
@@ -415,6 +528,19 @@ elif st.session_state.current_page == "results":
     prediction_proba = result["probability"]
     user_input = result["user_input"]
     timestamp = result.get("timestamp", "N/A")
+    
+    # PDF Download Button in Top Right Corner
+    col1, col2 = st.columns([5, 1])
+    with col2:
+        pdf_bytes = generate_pdf_report(result)
+        st.download_button(
+            label="📥 PDF",
+            data=pdf_bytes,
+            file_name=f"HealthSense_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
     
     st.title("🩺 HealthSense - Your Health Risk Assessment")
     st.caption(f"Assessment Date: {timestamp}")
