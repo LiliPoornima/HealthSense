@@ -7,3 +7,5 @@ xgboost
 imbalanced-learn
 joblib
 streamlit
+plotly.express
+streamlit_lottie
