@@ -7,6 +7,12 @@ import plotly.express as px
 from streamlit_lottie import st_lottie
 import requests
 from datetime import datetime
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
 
 # ===============================
 # Helper function to load Lottie animations
@@ -20,6 +26,166 @@ def load_lottieurl(url: str):
 # Lottie animation
 lottie_url = "https://assets1.lottiefiles.com/packages/lf20_jcikwtux.json"
 lottie_animation = load_lottieurl(lottie_url)
+
+# ===============================
+# PDF Generation Function
+# ===============================
+def generate_pdf_report(result):
+    """Generate a PDF report of the health assessment"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1f77b4'),
+        spaceAfter=30,
+        alignment=1  # Center
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.HexColor('#2c3e50'),
+        spaceAfter=12,
+        spaceBefore=12
+    )
+    
+    # Title
+    title = Paragraph("HealthSense - Health Risk Assessment Report", title_style)
+    story.append(title)
+    
+    # Date
+    date_text = Paragraph(f"<i>Assessment Date: {result.get('timestamp', 'N/A')}</i>", styles['Normal'])
+    story.append(date_text)
+    story.append(Spacer(1, 20))
+    
+    # Prediction Results Section
+    story.append(Paragraph("Assessment Results", heading_style))
+    
+    prediction = result["prediction"]
+    probability = result["probability"]
+    
+    status = "🟥 Diseased" if prediction == 1 else "🟩 Healthy"
+    status_text = Paragraph(f"<b>Status:</b> {status}", styles['Normal'])
+    story.append(status_text)
+    story.append(Spacer(1, 8))
+    
+    if probability is not None:
+        risk_percent = probability * 100
+        risk_text = Paragraph(f"<b>Risk Score:</b> {risk_percent:.1f}%", styles['Normal'])
+        story.append(risk_text)
+        story.append(Spacer(1, 8))
+        
+        if risk_percent <= 30:
+            risk_level = "Low Risk - Health indicators suggest you are likely healthy"
+        elif 30 < risk_percent <= 70:
+            risk_level = "Moderate Risk - Some health indicators need attention"
+        else:
+            risk_level = "High Risk - Multiple health indicators suggest elevated disease risk"
+        
+        risk_level_text = Paragraph(f"<b>Risk Level:</b> {risk_level}", styles['Normal'])
+        story.append(risk_level_text)
+    
+    story.append(Spacer(1, 20))
+    
+    # Health Recommendations Section
+    story.append(Paragraph("Health Recommendations", heading_style))
+    
+    user_input = result["user_input"]
+    recommendations = []
+    
+    # Generate recommendations
+    bmi = user_input.get("bmi")
+    if isinstance(bmi, (int, float)) and bmi > 25:
+        recommendations.append("Weight Management: Your BMI is above the healthy range. Consider a balanced diet and regular exercise.")
+    
+    bp = user_input.get("blood_pressure")
+    if isinstance(bp, (int, float)) and bp > 120:
+        recommendations.append("Blood Pressure: Your blood pressure is elevated. Reduce salt intake and manage stress.")
+    
+    exercise = user_input.get("physical_activity")
+    if isinstance(exercise, str) and exercise.lower() in ["low", "sedentary"]:
+        recommendations.append("Physical Activity: Increase your activity. Aim for 30 minutes of exercise daily.")
+    
+    smoking = user_input.get("smoking_status")
+    if isinstance(smoking, str) and smoking.lower() not in ["non-smoker", "never"]:
+        recommendations.append("Smoking Cessation: Quitting smoking is crucial for your health.")
+    
+    alcohol = user_input.get("alcohol_consumption")
+    if isinstance(alcohol, str) and alcohol.lower() not in ["none", "never", "low"]:
+        recommendations.append("Alcohol Moderation: Consider limiting alcohol consumption to reduce long-term health risks.")
+    
+    if recommendations:
+        for i, rec in enumerate(recommendations, 1):
+            rec_text = Paragraph(f"{i}. {rec}", styles['Normal'])
+            story.append(rec_text)
+            story.append(Spacer(1, 6))
+    else:
+        success_text = Paragraph("Great job! You're following healthy habits. Keep up the excellent work!", styles['Normal'])
+        story.append(success_text)
+    
+    story.append(Spacer(1, 20))
+    
+    # Key Health Indicators Section
+    story.append(Paragraph("Your Health Data Summary", heading_style))
+    
+    key_features = ['age', 'bmi', 'blood_pressure', 'heart_rate', 'smoking_status', 
+                   'physical_activity', 'sleep_hours', 'alcohol_consumption']
+    
+    data = [['Feature', 'Your Value']]
+    for feature in key_features:
+        if feature in user_input:
+            value = user_input[feature]
+            label = feature.replace('_', ' ').title()
+            if isinstance(value, (int, float)):
+                data.append([label, f"{value:.2f}"])
+            else:
+                data.append([label, str(value)])
+    
+    if len(data) > 1:
+        table = Table(data, colWidths=[3*inch, 2*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+        ]))
+        story.append(table)
+    
+    story.append(Spacer(1, 30))
+    
+    # Disclaimer
+    disclaimer_style = ParagraphStyle(
+        'Disclaimer',
+        parent=styles['Italic'],
+        fontSize=9,
+        textColor=colors.grey
+    )
+    disclaimer_text = Paragraph(
+        "<i>Disclaimer: This assessment is for informational purposes only and does not replace professional medical advice. Please consult with a healthcare provider for a comprehensive evaluation.</i>",
+        disclaimer_style
+    )
+    story.append(disclaimer_text)
+    
+    # Build PDF
+    doc.build(story)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    
+    return pdf_bytes
 
 # ===============================
 # Setup paths
@@ -162,6 +328,8 @@ if st.sidebar.button("📊 View History", use_container_width=True):
 
 if st.sidebar.button("🏠 Back to Main", use_container_width=True):
     st.session_state.show_history = False
+    st.session_state.current_page = "input"
+    st.rerun()
 
 st.sidebar.divider()
 
@@ -415,6 +583,19 @@ elif st.session_state.current_page == "results":
     prediction_proba = result["probability"]
     user_input = result["user_input"]
     timestamp = result.get("timestamp", "N/A")
+    
+    # PDF Download Button in Top Right Corner
+    col1, col2 = st.columns([5, 1])
+    with col2:
+        pdf_bytes = generate_pdf_report(result)
+        st.download_button(
+            label="📥 PDF",
+            data=pdf_bytes,
+            file_name=f"HealthSense_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
     
     st.title("🩺 HealthSense - Your Health Risk Assessment")
     st.caption(f"Assessment Date: {timestamp}")
