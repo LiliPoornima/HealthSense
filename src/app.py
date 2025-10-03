@@ -74,7 +74,7 @@ lottie_animation = load_lottieurl(lottie_url)
 # PDF Generation Function
 # ===============================
 def generate_pdf_report(result):
-    """Generate a PDF report of the health assessment"""
+    """Generate a PDF report of the health state prediction"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
     story = []
@@ -100,16 +100,16 @@ def generate_pdf_report(result):
     )
     
     # Title
-    title = Paragraph("HealthSense - Health Risk Assessment Report", title_style)
+    title = Paragraph("HealthSense - Health Prediction Report", title_style)
     story.append(title)
     
     # Date
-    date_text = Paragraph(f"<i>Assessment Date: {result.get('timestamp', 'N/A')}</i>", styles['Normal'])
+    date_text = Paragraph(f"<i>Prediction Date: {result.get('timestamp', 'N/A')}</i>", styles['Normal'])
     story.append(date_text)
     story.append(Spacer(1, 20))
     
     # Prediction Results Section
-    story.append(Paragraph("Assessment Results", heading_style))
+    story.append(Paragraph("Prediction Results", heading_style))
     
     prediction = result["prediction"]
     probability = result["probability"]
@@ -222,7 +222,7 @@ def generate_pdf_report(result):
         textColor=colors.grey
     )
     disclaimer_text = Paragraph(
-        "<i>Disclaimer: This assessment is for informational purposes only and does not replace professional medical advice. Please consult with a healthcare provider for a comprehensive evaluation.</i>",
+        "<i>Disclaimer: This report is for informational purposes only and does not replace professional medical advice. Please consult with a healthcare provider for a comprehensive evaluation.</i>",
         disclaimer_style
     )
     story.append(disclaimer_text)
@@ -481,7 +481,7 @@ elif st.session_state.current_page == "input":
             st_lottie(lottie_animation, height=200, key="health_anim")
     
     st.title("🩺 HealthSense - AI Health Risk Predictor")
-    st.markdown("### Welcome! Get Your Personalized Health Assessment")
+    st.markdown("### Welcome! Get Your Personalized Health Prediction")
     
     st.info("👇 **Get Started:** Fill in your health details below and click the **Predict** button at the bottom to receive your personalized health risk assessment.")
     
@@ -686,7 +686,7 @@ elif st.session_state.current_page == "results":
             use_container_width=True
         )
     
-    st.title("🩺 HealthSense - Your Health Risk Assessment")
+    st.title("🩺 HealthSense - Your Health Results")
     st.caption(f"Assessment Date: {timestamp}")
     st.divider()
     
@@ -758,7 +758,7 @@ elif st.session_state.current_page == "results":
             with risk_col2:
                 # Risk interpretation
                 st.markdown(f"""
-                <div style="padding: 15px; border-radius: 8px; background-color: #f8f9fa; border-left: 5px solid {progress_color}; margin-top: 10px;">
+                <div style="padding: 10px; border-radius: 8px; background-color: #f8f9fa; border-left: 5px solid {progress_color}; margin-top: 10px;">
                 <h4 style="margin: 0; color: {progress_color};">{risk_label}</h4>
                 <p style="margin: 5px 0 0 0; font-size: 14px;">{risk_description}</p>
                 </div>
@@ -781,7 +781,7 @@ elif st.session_state.current_page == "results":
             st.metric(
                 label="Features Analyzed", 
                 value=total_features,
-                help="Number of health indicators used in this assessment"
+                help="Number of health indicators used in this Prediction"
             )
         
         with stat_col2:
@@ -865,33 +865,45 @@ elif st.session_state.current_page == "results":
                     st.write(f"• {finding}")
         
         with summary_col2:
-            # Next steps
+        # Next steps
             st.markdown("#### 🎯 Recommended Actions")
-            
+
+            def styled_box(color, title, points):
+                st.markdown(
+                    f"""
+                    <div style="background-color:{color}; padding: 12px; border-radius: 8px; 
+                                width: 80%; margin-bottom: 10px;">
+                        <b>{title}</b>
+                        <ul style="margin-top: 8px;">
+                            {''.join([f"<li>{p}</li>" for p in points])}
+                        </ul>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
             if risk_percent <= 30:
-                st.success("""
-                **Maintain Your Health:**
-                • Continue healthy habits
-                • Regular check-ups
-                • Balanced nutrition
-                • Stay active
-                """)
+                styled_box("#1b4332", "✅ Maintain Your Health:", [
+                    "Continue healthy habits",
+                    "Regular check-ups",
+                    "Balanced nutrition",
+                    "Stay active"
+                ])
             elif risk_percent <= 70:
-                st.warning("""
-                **Take Action:**
-                • Consult healthcare provider
-                • Improve lifestyle factors
-                • Monitor key metrics
-                • Set health goals
-                """)
+                styled_box("#fca311", "📝 Take Action:", [
+                    "Consult healthcare provider",
+                    "Improve lifestyle factors",
+                    "Monitor key metrics",
+                    "Set health goals"
+                ])
             else:
-                st.error("""
-                **Immediate Attention:**
-                • Consult doctor promptly
-                • Comprehensive evaluation
-                • Lifestyle changes
-                • Regular monitoring
-                """)
+                styled_box("#d90429", "⚠️ Immediate Attention:", [
+                    "Consult doctor promptly",
+                    "Comprehensive evaluation",
+                    "Lifestyle changes",
+                    "Regular monitoring"
+                ])
+
     
     st.divider()
     
