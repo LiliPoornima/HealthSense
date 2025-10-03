@@ -7,3 +7,7 @@ xgboost
 imbalanced-learn
 joblib
 streamlit
+plotly
+streamlit-lottie
+requests
+reportlab
