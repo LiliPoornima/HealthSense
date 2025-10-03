@@ -437,6 +437,13 @@ elif st.session_state.current_page == "input":
     
     # Input form on MAIN page (not sidebar)
     st.subheader("📋 Enter Your Health Information")
+
+     # Define columns that should only take integers
+    int_only_cols = [
+        "survey_code", "age", "height", "waist_size",
+        "blood_pressure", "heart_rate", "sleep_hours",
+        "work_hours", "daily_steps", "meals_per_day", "physical_activity"
+    ]
     
     # Create input fields for each category
     for category, columns in feature_categories.items():
@@ -450,15 +457,30 @@ elif st.session_state.current_page == "input":
                     if col in numeric_cols:
                         # Numeric input
                         col_label = col.replace('_', ' ').title()
-                        st.session_state.user_input[col] = st.number_input(
-                            label=col_label,
-                            min_value=float(df_features[col].min()),
-                            max_value=float(df_features[col].max() * 1.5),
-                            value=st.session_state.user_input.get(col, float(df_features[col].median())),
-                            step=0.01,
-                            key=f"input_{col}",
-                            help=f"Range: {df_features[col].min():.1f} - {df_features[col].max():.1f}"
-                        )
+                        
+                        if col in int_only_cols:
+                            # Integer input
+                            st.session_state.user_input[col] = int(st.number_input(
+                                label=col_label,
+                                min_value=int(df_features[col].min()),
+                                max_value=int(df_features[col].max() * 1.5),
+                                value=int(st.session_state.user_input.get(col, df_features[col].median())),
+                                step=1,
+                                format="%d",
+                                key=f"input_{col}",
+                                help=f"Range: {int(df_features[col].min())} - {int(df_features[col].max())}"
+                            ))
+                        else:
+                            # Float input
+                            st.session_state.user_input[col] = st.number_input(
+                                label=col_label,
+                                min_value=float(df_features[col].min()),
+                                max_value=float(df_features[col].max() * 1.5),
+                                value=float(st.session_state.user_input.get(col, df_features[col].median())),
+                                step=0.01,
+                                key=f"input_{col}",
+                                help=f"Range: {df_features[col].min():.1f} - {df_features[col].max():.1f}"
+                            )
                     else:
                         # Categorical input
                         col_label = col.replace('_', ' ').title()
@@ -483,10 +505,26 @@ elif st.session_state.current_page == "input":
     st.divider()
     
     # Predict button at the END of the page
-    st.markdown("### 🎯 Ready for Your Assessment?")
+    st.markdown("""
+    <style>
+    div.stButton > button:first-child {
+        background-color: #1E90FF; /* Dodger Blue */
+        color: white;
+    }
+    div.stButton > button:first-child:hover {
+        background-color: #104E8B; /* Dark Blue on hover */
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
+    st.markdown("### 🎯 Ready for Your Health Check?")
     col1, col2, col3 = st.columns([2, 1, 2])
+   
     with col2:
-        if st.button("🔍 Predict Health Risk", type="primary", use_container_width=True):
+       
+        if st.button("🔍 Predict Health Risk", use_container_width=True):
+            
+
             # Perform prediction
             user_input = st.session_state.user_input.copy()
             input_df = pd.DataFrame([user_input])
