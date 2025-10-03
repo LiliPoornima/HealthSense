@@ -9,3 +9,4 @@ joblib
 streamlit
 plotly.express
 streamlit_lottie
+reportlab

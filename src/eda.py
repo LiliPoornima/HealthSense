@@ -38,3 +38,6 @@ print()
 sns.countplot(x="target", data=df)
 plt.title("Class Distribution")
 plt.show()
+
+
+
