@@ -7,6 +7,55 @@ import plotly.express as px
 from streamlit_lottie import st_lottie
 import requests
 from datetime import datetime
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
+
+# ===============================
+# Unit Configuration
+# ===============================
+FEATURE_UNITS = {
+    # Personal Information
+    'age': 'years',
+    'height': 'cm',
+    'weight': 'kg',
+    
+    # Body Measurements
+    'bmi': 'kg/m²',
+    'waist_size': 'cm',
+    'hip_size': 'cm',
+    'chest_size': 'cm',
+    
+    # Vital Signs & Medical Measurements
+    'blood_pressure': 'mmHg',
+    'heart_rate': 'bpm',
+    'temperature': '°C',
+    'oxygen_saturation': '%',
+    'glucose': 'mg/dL',
+    'cholesterol': 'mg/dL',
+    'hemoglobin': 'g/dL',
+    'hba1c': '%',
+    
+    # Lifestyle Habits
+    'sleep_hours': 'hours',
+    'work_hours': 'hours',
+    'daily_steps': 'steps',
+    'meals_per_day': 'meals',
+    'physical_activity': 'hours/week',
+    'screen_time': 'hours/day',
+    'caffeine_intake': 'cups/day',
+    
+    # Other measurements
+    'systolic_bp': 'mmHg',
+    'diastolic_bp': 'mmHg',
+    'respiratory_rate': 'breaths/min',
+    
+    # Default fallback
+    'default': ''
+}
 
 # ===============================
 # Helper function to load Lottie animations
@@ -20,6 +69,170 @@ def load_lottieurl(url: str):
 # Lottie animation
 lottie_url = "https://assets1.lottiefiles.com/packages/lf20_jcikwtux.json"
 lottie_animation = load_lottieurl(lottie_url)
+
+# ===============================
+# PDF Generation Function
+# ===============================
+def generate_pdf_report(result):
+    """Generate a PDF report of the health assessment"""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    story = []
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1f77b4'),
+        spaceAfter=30,
+        alignment=1  # Center
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.HexColor('#2c3e50'),
+        spaceAfter=12,
+        spaceBefore=12
+    )
+    
+    # Title
+    title = Paragraph("HealthSense - Health Risk Assessment Report", title_style)
+    story.append(title)
+    
+    # Date
+    date_text = Paragraph(f"<i>Assessment Date: {result.get('timestamp', 'N/A')}</i>", styles['Normal'])
+    story.append(date_text)
+    story.append(Spacer(1, 20))
+    
+    # Prediction Results Section
+    story.append(Paragraph("Assessment Results", heading_style))
+    
+    prediction = result["prediction"]
+    probability = result["probability"]
+    
+    status = "🟥 Diseased" if prediction == 1 else "🟩 Healthy"
+    status_text = Paragraph(f"<b>Status:</b> {status}", styles['Normal'])
+    story.append(status_text)
+    story.append(Spacer(1, 8))
+    
+    if probability is not None:
+        risk_percent = probability * 100
+        risk_text = Paragraph(f"<b>Risk Score:</b> {risk_percent:.1f}%", styles['Normal'])
+        story.append(risk_text)
+        story.append(Spacer(1, 8))
+        
+        if risk_percent <= 30:
+            risk_level = "Low Risk - Health indicators suggest you are likely healthy"
+        elif 30 < risk_percent <= 70:
+            risk_level = "Moderate Risk - Some health indicators need attention"
+        else:
+            risk_level = "High Risk - Multiple health indicators suggest elevated disease risk"
+        
+        risk_level_text = Paragraph(f"<b>Risk Level:</b> {risk_level}", styles['Normal'])
+        story.append(risk_level_text)
+    
+    story.append(Spacer(1, 20))
+    
+    # Health Recommendations Section
+    story.append(Paragraph("Health Recommendations", heading_style))
+    
+    user_input = result["user_input"]
+    recommendations = []
+    
+    # Generate recommendations
+    bmi = user_input.get("bmi")
+    if isinstance(bmi, (int, float)) and bmi > 25:
+        recommendations.append("Weight Management: Your BMI is above the healthy range. Consider a balanced diet and regular exercise.")
+    
+    bp = user_input.get("blood_pressure")
+    if isinstance(bp, (int, float)) and bp > 120:
+        recommendations.append("Blood Pressure: Your blood pressure is elevated. Reduce salt intake and manage stress.")
+    
+    exercise = user_input.get("physical_activity")
+    if isinstance(exercise, str) and exercise.lower() in ["low", "sedentary"]:
+        recommendations.append("Physical Activity: Increase your activity. Aim for 30 minutes of exercise daily.")
+    
+    smoking = user_input.get("smoking_status")
+    if isinstance(smoking, str) and smoking.lower() not in ["non-smoker", "never"]:
+        recommendations.append("Smoking Cessation: Quitting smoking is crucial for your health.")
+    
+    alcohol = user_input.get("alcohol_consumption")
+    if isinstance(alcohol, str) and alcohol.lower() not in ["none", "never", "low"]:
+        recommendations.append("Alcohol Moderation: Consider limiting alcohol consumption to reduce long-term health risks.")
+    
+    if recommendations:
+        for i, rec in enumerate(recommendations, 1):
+            rec_text = Paragraph(f"{i}. {rec}", styles['Normal'])
+            story.append(rec_text)
+            story.append(Spacer(1, 6))
+    else:
+        success_text = Paragraph("Great job! You're following healthy habits. Keep up the excellent work!", styles['Normal'])
+        story.append(success_text)
+    
+    story.append(Spacer(1, 20))
+    
+    # Key Health Indicators Section
+    story.append(Paragraph("Your Health Data Summary", heading_style))
+    
+    key_features = ['age', 'bmi', 'blood_pressure', 'heart_rate', 'smoking_status', 
+                   'physical_activity', 'sleep_hours', 'alcohol_consumption']
+    
+    data = [['Feature', 'Your Value']]
+    for feature in key_features:
+        if feature in user_input:
+            value = user_input[feature]
+            label = feature.replace('_', ' ').title()
+            unit = FEATURE_UNITS.get(feature, '')
+            if isinstance(value, (int, float)):
+                if unit:
+                    data.append([f"{label} ({unit})", f"{value:.2f}"])
+                else:
+                    data.append([label, f"{value:.2f}"])
+            else:
+                data.append([label, str(value)])
+    
+    if len(data) > 1:
+        table = Table(data, colWidths=[3*inch, 2*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+        ]))
+        story.append(table)
+    
+    story.append(Spacer(1, 30))
+    
+    # Disclaimer
+    disclaimer_style = ParagraphStyle(
+        'Disclaimer',
+        parent=styles['Italic'],
+        fontSize=9,
+        textColor=colors.grey
+    )
+    disclaimer_text = Paragraph(
+        "<i>Disclaimer: This assessment is for informational purposes only and does not replace professional medical advice. Please consult with a healthcare provider for a comprehensive evaluation.</i>",
+        disclaimer_style
+    )
+    story.append(disclaimer_text)
+    
+    # Build PDF
+    doc.build(story)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    
+    return pdf_bytes
 
 # ===============================
 # Setup paths
@@ -162,6 +375,8 @@ if st.sidebar.button("📊 View History", use_container_width=True):
 
 if st.sidebar.button("🏠 Back to Main", use_container_width=True):
     st.session_state.show_history = False
+    st.session_state.current_page = "input"
+    st.rerun()
 
 st.sidebar.divider()
 
@@ -221,16 +436,21 @@ if st.session_state.show_history:
                 
                 st.divider()
                 
-                # Show some key inputs
+                # Show some key inputs with units
                 st.markdown("**Key Health Indicators:**")
-                key_features = ['age', 'bmi', 'blood_pressure', 'heart_rate', 'smoking_status', 'physical_activity']
+                key_features = ['age', 'bmi', 'blood_pressure', 'heart_rate', 'sleep_hours']
                 display_data = {}
-                
+
                 for feature in key_features:
                     if feature in record['user_input']:
                         value = record['user_input'][feature]
-                        display_data[feature.replace('_', ' ').title()] = value
-                
+                        unit = FEATURE_UNITS.get(feature, '')
+                        label = feature.replace('_', ' ').title()
+                        if unit:
+                            display_data[f"{label} ({unit})"] = value
+                        else:
+                            display_data[label] = value
+
                 if display_data:
                     cols = st.columns(len(display_data))
                     for idx, (key, value) in enumerate(display_data.items()):
@@ -267,10 +487,44 @@ elif st.session_state.current_page == "input":
     
     st.divider()
     
+    # ===============================
+    # UNIT CONVERSION HELPERS
+    # ===============================
+    def display_conversion_helpers():
+        """Show unit conversion helpers for common measurements"""
+        with st.expander("🔄 Unit Conversion Helpers", expanded=False):
+            st.markdown("**Convert between different measurement systems:**")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("**Height Conversion**")
+                feet = st.number_input("Feet", min_value=0, max_value=8, value=5, key="feet")
+                inches = st.number_input("Inches", min_value=0, max_value=11, value=8, key="inches")
+                total_inches = feet * 12 + inches
+                cm = total_inches * 2.54
+                st.success(f"**{feet}'{inches}\"** = **{cm:.1f} cm**")
+            
+            with col2:
+                st.markdown("**Weight Conversion**")
+                pounds = st.number_input("Pounds", min_value=0, max_value=500, value=150, key="pounds")
+                kg = pounds * 0.453592
+                st.success(f"**{pounds} lbs** = **{kg:.1f} kg**")
+            
+            with col3:
+                st.markdown("**Temperature Conversion**")
+                fahrenheit = st.number_input("°F", min_value=0, max_value=120, value=98, key="fahrenheit")
+                celsius = (fahrenheit - 32) * 5/9
+                st.success(f"**{fahrenheit}°F** = **{celsius:.1f}°C**")
+    
+    # Display the conversion helpers
+    display_conversion_helpers()
+    st.divider()
+    
     # Input form on MAIN page (not sidebar)
     st.subheader("📋 Enter Your Health Information")
 
-     # Define columns that should only take integers
+    # Define columns that should only take integers
     int_only_cols = [
         "survey_code", "age", "height", "waist_size",
         "blood_pressure", "heart_rate", "sleep_hours",
@@ -286,49 +540,56 @@ elif st.session_state.current_page == "input":
             
             for idx, col in enumerate(columns):
                 with cols[idx % num_cols]:
+                    # Get the unit for this feature
+                    unit = FEATURE_UNITS.get(col, FEATURE_UNITS['default'])
+                    col_label = col.replace('_', ' ').title()
+                    
+                    # Add unit to label if available
+                    if unit:
+                        display_label = f"{col_label} ({unit})"
+                    else:
+                        display_label = col_label
+                    
                     if col in numeric_cols:
-                        # Numeric input
-                        col_label = col.replace('_', ' ').title()
-                        
+                        # Numeric input with units
                         if col in int_only_cols:
                             # Integer input
                             st.session_state.user_input[col] = int(st.number_input(
-                                label=col_label,
+                                label=display_label,
                                 min_value=int(df_features[col].min()),
                                 max_value=int(df_features[col].max() * 1.5),
                                 value=int(st.session_state.user_input.get(col, df_features[col].median())),
                                 step=1,
                                 format="%d",
                                 key=f"input_{col}",
-                                help=f"Range: {int(df_features[col].min())} - {int(df_features[col].max())}"
+                                help=f"Range: {int(df_features[col].min())} - {int(df_features[col].max())} {unit}"
                             ))
                         else:
                             # Float input
                             st.session_state.user_input[col] = st.number_input(
-                                label=col_label,
+                                label=display_label,
                                 min_value=float(df_features[col].min()),
                                 max_value=float(df_features[col].max() * 1.5),
                                 value=float(st.session_state.user_input.get(col, df_features[col].median())),
                                 step=0.01,
                                 key=f"input_{col}",
-                                help=f"Range: {df_features[col].min():.1f} - {df_features[col].max():.1f}"
+                                help=f"Range: {df_features[col].min():.1f} - {df_features[col].max():.1f} {unit}"
                             )
                     else:
                         # Categorical input
-                        col_label = col.replace('_', ' ').title()
                         options = df_features[col].dropna().unique().tolist()
                         default_value = st.session_state.user_input.get(col, options[0])
                         
                         if len(options) <= 2:
                             st.session_state.user_input[col] = st.radio(
-                                col_label,
+                                display_label,
                                 options,
                                 index=options.index(default_value) if default_value in options else 0,
                                 key=f"input_{col}"
                             )
                         else:
                             st.session_state.user_input[col] = st.selectbox(
-                                col_label,
+                                display_label,
                                 options,
                                 index=options.index(default_value) if default_value in options else 0,
                                 key=f"input_{col}"
@@ -353,10 +614,7 @@ elif st.session_state.current_page == "input":
     col1, col2, col3 = st.columns([2, 1, 2])
    
     with col2:
-       
         if st.button("🔍 Predict Health Risk", use_container_width=True):
-            
-
             # Perform prediction
             user_input = st.session_state.user_input.copy()
             input_df = pd.DataFrame([user_input])
@@ -404,7 +662,6 @@ elif st.session_state.current_page == "input":
             # Navigate to results page
             st.session_state.current_page = "results"
             st.rerun()
-
 # ===============================
 # PAGE 2: RESULTS
 # ===============================
@@ -416,40 +673,225 @@ elif st.session_state.current_page == "results":
     user_input = result["user_input"]
     timestamp = result.get("timestamp", "N/A")
     
+    # PDF Download Button in Top Right Corner
+    col1, col2 = st.columns([5, 1])
+    with col2:
+        pdf_bytes = generate_pdf_report(result)
+        st.download_button(
+            label="📥 PDF Report",
+            data=pdf_bytes,
+            file_name=f"HealthSense_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
+    
     st.title("🩺 HealthSense - Your Health Risk Assessment")
     st.caption(f"Assessment Date: {timestamp}")
     st.divider()
     
-    # Main prediction result
+    # Main prediction result - VERTICAL LAYOUT
     st.subheader("📊 Prediction Results")
     
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # VERTICAL LAYOUT - Status, Risk Level, Quick Stats in order
+    with st.container():
+        # Status Section
+        st.markdown("### 🎯 Status")
+        status_col1, status_col2 = st.columns([1, 2])
+        
+        with status_col1:
+            if prediction == 1:
+                st.error("**🟥 Diseased**")
+            else:
+                st.success("**🟩 Healthy**")
+        
+        with status_col2:
+            if prediction == 1:
+                st.info("""
+                **Recommendation:** 
+                Please consult with a healthcare professional for further evaluation and guidance.
+                """)
+            else:
+                st.info("""
+                **Great news!** 
+                Your health indicators appear to be within normal ranges.
+                """)
     
-    with col1:
-        st.markdown("### Status")
-        if prediction == 1:
-            st.error("### 🟥 Diseased")
-        else:
-            st.success("### 🟩 Healthy")
+    st.divider()
     
-    with col2:
+    # Risk Level Section
+    with st.container():
+        st.markdown("### 📈 Risk Level")
+        
         if prediction_proba is not None:
             risk_percent = prediction_proba * 100
-            st.markdown("### Risk Level")
-            st.progress(int(risk_percent) / 100)
-            st.metric("Risk Score", f"{risk_percent:.1f}%")
+            
+            # Progress bar with color coding
+            if risk_percent <= 30:
+                progress_color = "green"
+                risk_label = "Low Risk"
+                risk_description = "Your health indicators suggest you are likely healthy."
+            elif 30 < risk_percent <= 70:
+                progress_color = "orange"
+                risk_label = "Moderate Risk"
+                risk_description = "Some health indicators need attention."
+            else:
+                progress_color = "red"
+                risk_label = "High Risk"
+                risk_description = "Multiple health indicators suggest elevated disease risk."
+            
+            # Display in columns for better layout
+            risk_col1, risk_col2 = st.columns([1, 2])
+            
+            with risk_col1:
+                # Risk metric
+                st.metric(
+                    label="Risk Score", 
+                    value=f"{risk_percent:.1f}%",
+                    delta=risk_label,
+                    delta_color="off"
+                )
+                
+                # Progress bar
+                st.progress(int(risk_percent) / 100, text=f"{risk_percent:.1f}%")
+            
+            with risk_col2:
+                # Risk interpretation
+                st.markdown(f"""
+                <div style="padding: 15px; border-radius: 8px; background-color: #f8f9fa; border-left: 5px solid {progress_color}; margin-top: 10px;">
+                <h4 style="margin: 0; color: {progress_color};">{risk_label}</h4>
+                <p style="margin: 5px 0 0 0; font-size: 14px;">{risk_description}</p>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.warning("Risk probability not available")
+    
+    st.divider()
+    
+    # Quick Stats Section
+    with st.container():
+        st.markdown("### 📊 Quick Stats")
+        
+        # Create 4 columns for stats
+        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+        
+        with stat_col1:
+            # Feature count
+            total_features = len(user_input)
+            st.metric(
+                label="Features Analyzed", 
+                value=total_features,
+                help="Number of health indicators used in this assessment"
+            )
+        
+        with stat_col2:
+            # Numeric metrics
+            numeric_features = sum(1 for value in user_input.values() if isinstance(value, (int, float)))
+            st.metric(
+                label="Numeric Metrics", 
+                value=numeric_features
+            )
+        
+        with stat_col3:
+            # Lifestyle factors
+            categorical_features = total_features - numeric_features
+            st.metric(
+                label="Lifestyle Factors", 
+                value=categorical_features
+            )
+        
+        with stat_col4:
+            # Data quality indicator
+            completion_rate = (total_features / len(all_columns)) * 100
+            st.metric(
+                label="Data Completeness", 
+                value=f"{completion_rate:.0f}%"
+            )
+    
+    st.divider()
+    
+    # Risk Summary Card
+    if prediction_proba is not None:
+        risk_percent = prediction_proba * 100
+        
+        # Create a comprehensive risk summary
+        st.markdown("### 📋 Detailed Analysis")
+        
+        summary_col1, summary_col2 = st.columns([2, 1])
+        
+        with summary_col1:
+            # Risk indicators
+            st.markdown("#### 🔍 Key Findings")
+            
+            # Analyze key health metrics
+            critical_findings = []
+            warning_findings = []
+            good_findings = []
+            
+            # BMI analysis
+            bmi = user_input.get("bmi")
+            if isinstance(bmi, (int, float)):
+                if bmi > 30:
+                    critical_findings.append(f"BMI: {bmi:.1f} (Obese)")
+                elif bmi > 25:
+                    warning_findings.append(f"BMI: {bmi:.1f} (Overweight)")
+                else:
+                    good_findings.append(f"BMI: {bmi:.1f} (Normal)")
+            
+            # Blood pressure analysis
+            bp = user_input.get("blood_pressure")
+            if isinstance(bp, (int, float)):
+                if bp > 140:
+                    critical_findings.append(f"Blood Pressure: {bp:.0f} mmHg (High)")
+                elif bp > 120:
+                    warning_findings.append(f"Blood Pressure: {bp:.0f} mmHg (Elevated)")
+                else:
+                    good_findings.append(f"Blood Pressure: {bp:.0f} mmHg (Normal)")
+            
+            # Display findings
+            if critical_findings:
+                st.error("#### ⚠️ Critical Areas")
+                for finding in critical_findings:
+                    st.write(f"• {finding}")
+            
+            if warning_findings:
+                st.warning("#### 📝 Areas for Improvement")
+                for finding in warning_findings:
+                    st.write(f"• {finding}")
+            
+            if good_findings and not critical_findings:
+                st.success("#### ✅ Positive Indicators")
+                for finding in good_findings:
+                    st.write(f"• {finding}")
+        
+        with summary_col2:
+            # Next steps
+            st.markdown("#### 🎯 Recommended Actions")
             
             if risk_percent <= 30:
-                st.success("✅ **Low Risk:** Your health indicators suggest you are likely healthy.")
-            elif 30 < risk_percent <= 70:
-                st.warning("⚠️ **Moderate Risk:** Some health indicators need attention.")
+                st.success("""
+                **Maintain Your Health:**
+                • Continue healthy habits
+                • Regular check-ups
+                • Balanced nutrition
+                • Stay active
+                """)
+            elif risk_percent <= 70:
+                st.warning("""
+                **Take Action:**
+                • Consult healthcare provider
+                • Improve lifestyle factors
+                • Monitor key metrics
+                • Set health goals
+                """)
             else:
-                st.error("🚨 **High Risk:** Multiple health indicators suggest elevated disease risk.")
-    
-    with col3:
-        st.markdown("### Quick Stats")
-        total_features = len(user_input)
-        st.metric("Features Analyzed", total_features)
+                st.error("""
+                **Immediate Attention:**
+                • Consult doctor promptly
+                • Comprehensive evaluation
+                • Lifestyle changes
+                • Regular monitoring
+                """)
     
     st.divider()
     
@@ -493,16 +935,25 @@ elif st.session_state.current_page == "results":
             recommendations.append(("😴 Sleep Quality", "Aim for 7-9 hours of quality sleep per night for optimal health.", "warning"))
     
     if recommendations:
-        for title, message, level in recommendations:
-            if level == "error":
-                st.error(f"**{title}:** {message}")
-            elif level == "warning":
-                st.warning(f"**{title}:** {message}")
-            else:
-                st.info(f"**{title}:** {message}")
+        # Display recommendations in columns for better layout
+        rec_cols = st.columns(2)
+        for idx, (title, message, level) in enumerate(recommendations):
+            with rec_cols[idx % 2]:
+                if level == "error":
+                    st.error(f"**{title}:** {message}")
+                elif level == "warning":
+                    st.warning(f"**{title}:** {message}")
+                else:
+                    st.info(f"**{title}:** {message}")
     else:
-        st.success("🎉 **Great Job!** You're following healthy habits. Keep up the excellent work!")
-    
+        st.success("""
+        🎉 **Excellent Health Habits!**
+        
+        You're maintaining healthy lifestyle choices across all major health indicators. 
+        Continue with your current routine and regular health check-ups.
+        """)
+
+    # Rest of your existing code for Feature Analysis Section remains the same...
     st.divider()
     
     # Feature Analysis Section
@@ -566,26 +1017,31 @@ elif st.session_state.current_page == "results":
                 st.metric("Population Std Dev", f"{df_features[dist_feature].std():.2f}")
     
     with tab2:
-        st.markdown("**Review all the information you provided:**")
-        
-        # Edit button at TOP of summary section
-        col1, col2, col3 = st.columns([2, 1, 2])
-        with col2:
-            if st.button("✏️ Edit Data", type="primary", use_container_width=True):
-                st.session_state.current_page = "input"
-                st.rerun()
-        
-        st.divider()
-        
-        for category, columns in feature_categories.items():
-            with st.expander(category, expanded=False):
-                for col in columns:
-                    value = user_input.get(col)
-                    col_label = col.replace('_', ' ').title()
-                    if isinstance(value, (int, float)):
-                        st.write(f"**{col_label}:** {value:.2f}")
-                    else:
-                        st.write(f"**{col_label}:** {value}")
+     st.markdown("**Review all the information you provided:**")
+    
+    # Edit button moved to LEFT corner - simple approach
+    if st.button("✏️ Edit Data", type="primary"):
+        st.session_state.current_page = "input"
+        st.rerun()
+    
+    st.divider()
+    
+    for category, columns in feature_categories.items():
+        with st.expander(category, expanded=False):
+            for col in columns:
+                value = user_input.get(col)
+                col_label = col.replace('_', ' ').title()
+                unit = FEATURE_UNITS.get(col, '')
+                
+                if unit:
+                    display_text = f"**{col_label} ({unit}):**"
+                else:
+                    display_text = f"**{col_label}:**"
+                
+                if isinstance(value, (int, float)):
+                    st.write(f"{display_text} {value:.2f}")
+                else:
+                    st.write(f"{display_text} {value}")
     
     st.divider()
     

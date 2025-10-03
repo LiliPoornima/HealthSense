@@ -16,7 +16,7 @@ PROCESSED_PATH = os.path.join(BASE_DIR, "..", "data", "processed", "preprocessed
 df = pd.read_csv(RAW_PATH)
 
 # Drop unnecessary columns
-df = df.drop(columns=["electrolyte_level", "gene_marker_flag"], errors='ignore')
+df = df.drop(columns=["electrolyte_level", "gene_marker_flag","bmi_estimated"], errors='ignore')
 
 # Split columns by dtype
 num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -72,7 +72,7 @@ def clean_dataset(df):
         "work_hours", "daily_steps", "meals_per_day","physical_activity"
     ]
     float_cols = [
-        "weight", "bmi", "bmi_estimated", "bmi_scaled", "bmi_corrected",
+        "weight", "bmi", "bmi_scaled", "bmi_corrected",
         "cholesterol", "glucose", "insulin", "calorie_intake",
         "sugar_intake", "alcohol_consumption", "water_intake", "screen_time",
         "stress_level", "mental_health_score", "environmental_risk_score",
