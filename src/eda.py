@@ -20,6 +20,16 @@ print("Info about dataset:")
 print(df.info())
 print()
 
+# Check for duplicate rows
+duplicate_rows = df[df.duplicated()]
+print(f"Number of duplicate rows: {duplicate_rows.shape[0]}")
+if duplicate_rows.shape[0] > 0:
+    print("Duplicate rows found:")
+    print(duplicate_rows)
+else:
+    print("No duplicate rows found.")
+print()
+
 print("Missing values in each column:")
 print(df.isnull().sum())
 print()
@@ -38,3 +48,5 @@ print()
 sns.countplot(x="target", data=df)
 plt.title("Class Distribution")
 plt.show()
+
+
