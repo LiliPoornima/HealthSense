@@ -50,15 +50,3 @@ plt.title("Class Distribution")
 plt.show()
 
 
-# Correlation Heatmap
-numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-
-# Exclude non-feature numeric columns if needed (like 'target')
-if 'target' in numeric_cols:
-    numeric_cols.remove('target')
-
-plt.figure(figsize=(20,20))
-corr_matrix = df[numeric_cols].corr()
-sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap="coolwarm", cbar=True)
-plt.title("Feature Correlation Heatmap")
-plt.show()
