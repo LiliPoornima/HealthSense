@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 import os
 import plotly.express as px
+import plotly.graph_objects as go
 from streamlit_lottie import st_lottie
 import requests
 from datetime import datetime
@@ -71,10 +72,259 @@ lottie_url = "https://assets1.lottiefiles.com/packages/lf20_jcikwtux.json"
 lottie_animation = load_lottieurl(lottie_url)
 
 # ===============================
+# Function to create Health Gauge Chart
+# ===============================
+def create_health_gauge(risk_percent):
+    """Create a gauge chart showing health risk level"""
+    
+    # Determine color based on risk
+    if risk_percent <= 30:
+        color = "green"
+        risk_label = "Low Risk"
+    elif risk_percent <= 70:
+        color = "orange"
+        risk_label = "Moderate Risk"
+    else:
+        color = "red"
+        risk_label = "High Risk"
+    
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number+delta",
+        value = risk_percent,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': f"Health Risk Score<br><span style='font-size:0.8em;color:gray'>{risk_label}</span>", 
+                 'font': {'size': 24}},
+        delta = {'reference': 50, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}},
+        gauge = {
+            'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "darkgray"},
+            'bar': {'color': color},
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "gray",
+            'steps': [
+                {'range': [0, 30], 'color': 'rgba(0, 255, 0, 0.2)'},
+                {'range': [30, 70], 'color': 'rgba(255, 165, 0, 0.2)'},
+                {'range': [70, 100], 'color': 'rgba(255, 0, 0, 0.2)'}],
+            'threshold': {
+                'line': {'color': "black", 'width': 4},
+                'thickness': 0.75,
+                'value': risk_percent}}))
+    
+    fig.update_layout(
+        paper_bgcolor = "white",
+        font = {'color': "darkblue", 'family': "Arial"},
+        height=400
+    )
+    
+    return fig
+
+# ===============================
+# Function to create Risk Trend Chart
+# ===============================
+def create_risk_trend_chart(history):
+    """Create a line chart showing risk trend over time"""
+    if len(history) < 2:
+        return None
+    
+    # Extract data from history
+    dates = [record['timestamp'] for record in history]
+    risks = [record['probability'] * 100 if record['probability'] is not None else 0 
+             for record in history]
+    
+    fig = go.Figure()
+    
+    # Add risk trend line
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=risks,
+        mode='lines+markers',
+        name='Risk Score',
+        line=dict(color='#636EFA', width=3),
+        marker=dict(size=10, color='#636EFA', line=dict(color='white', width=2)),
+        hovertemplate='<b>Date:</b> %{x}<br><b>Risk:</b> %{y:.1f}%<extra></extra>'
+    ))
+    
+    # Add reference lines
+    fig.add_hline(y=30, line_dash="dash", line_color="green", 
+                  annotation_text="Low Risk Threshold", annotation_position="right")
+    fig.add_hline(y=70, line_dash="dash", line_color="red", 
+                  annotation_text="High Risk Threshold", annotation_position="right")
+    
+    fig.update_layout(
+        title="Your Health Risk Trend Over Time",
+        xaxis_title="Date",
+        yaxis_title="Risk Score (%)",
+        yaxis_range=[0, 100],
+        hovermode='x unified',
+        showlegend=False,
+        height=400,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='white'
+    )
+    
+    fig.update_xaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
+    fig.update_yaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
+    
+    return fig
+
+# ===============================
+# Function to create Health Category Radar Chart
+# ===============================
+def create_health_radar_chart(user_input, df_features):
+    """Create a radar chart comparing user metrics to population averages"""
+    
+    # Select key health categories
+    categories_map = {
+        'BMI': 'bmi',
+        'Blood Pressure': 'blood_pressure',
+        'Heart Rate': 'heart_rate',
+        'Physical Activity': 'physical_activity',
+        'Sleep Hours': 'sleep_hours'
+    }
+    
+    user_values = []
+    avg_values = []
+    categories = []
+    
+    for category, col in categories_map.items():
+        if col in user_input and col in df_features.columns:
+            user_val = user_input.get(col)
+            if isinstance(user_val, (int, float)):
+                # Normalize to 0-100 scale
+                min_val = df_features[col].min()
+                max_val = df_features[col].max()
+                avg_val = df_features[col].mean()
+                
+                user_normalized = ((user_val - min_val) / (max_val - min_val)) * 100
+                avg_normalized = ((avg_val - min_val) / (max_val - min_val)) * 100
+                
+                user_values.append(user_normalized)
+                avg_values.append(avg_normalized)
+                categories.append(category)
+    
+    if not categories:
+        return None
+    
+    fig = go.Figure()
+    
+    # Add user trace
+    fig.add_trace(go.Scatterpolar(
+        r=user_values + [user_values[0]],  # Close the polygon
+        theta=categories + [categories[0]],
+        fill='toself',
+        name='Your Values',
+        line=dict(color='#636EFA', width=2),
+        fillcolor='rgba(99, 110, 250, 0.3)'
+    ))
+    
+    # Add population average trace
+    fig.add_trace(go.Scatterpolar(
+        r=avg_values + [avg_values[0]],
+        theta=categories + [categories[0]],
+        fill='toself',
+        name='Population Average',
+        line=dict(color='lightgray', width=2, dash='dash'),
+        fillcolor='rgba(128, 128, 128, 0.1)'
+    ))
+    
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                showticklabels=False
+            )
+        ),
+        showlegend=True,
+        title="Health Metrics Comparison",
+        height=450
+    )
+    
+    return fig
+
+# ===============================
+# Function to create Feature Comparison Chart
+# ===============================
+def create_feature_comparison_chart(user_input, df_features):
+    """Create a horizontal bar chart comparing user values to population stats"""
+    
+    # Select numeric features to compare
+    features_to_compare = ['age', 'bmi', 'blood_pressure', 'heart_rate', 'sleep_hours']
+    available_features = [f for f in features_to_compare if f in user_input and f in df_features.columns]
+    
+    if not available_features:
+        return None
+    
+    comparison_data = []
+    
+    for feature in available_features:
+        user_val = user_input.get(feature)
+        if isinstance(user_val, (int, float)):
+            pop_mean = df_features[feature].mean()
+            pop_median = df_features[feature].median()
+            
+            comparison_data.append({
+                'Feature': feature.replace('_', ' ').title(),
+                'Your Value': user_val,
+                'Population Mean': pop_mean,
+                'Population Median': pop_median
+            })
+    
+    if not comparison_data:
+        return None
+    
+    df_compare = pd.DataFrame(comparison_data)
+    
+    fig = go.Figure()
+    
+    # Add bars for each metric
+    fig.add_trace(go.Bar(
+        name='Your Value',
+        x=df_compare['Your Value'],
+        y=df_compare['Feature'],
+        orientation='h',
+        marker=dict(color='#636EFA'),
+        text=df_compare['Your Value'].round(1),
+        textposition='auto',
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Population Mean',
+        x=df_compare['Population Mean'],
+        y=df_compare['Feature'],
+        orientation='h',
+        marker=dict(color='lightblue'),
+        text=df_compare['Population Mean'].round(1),
+        textposition='auto',
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Population Median',
+        x=df_compare['Population Median'],
+        y=df_compare['Feature'],
+        orientation='h',
+        marker=dict(color='lightgray'),
+        text=df_compare['Population Median'].round(1),
+        textposition='auto',
+    ))
+    
+    fig.update_layout(
+        title="Your Values vs Population Statistics",
+        xaxis_title="Value",
+        yaxis_title="",
+        barmode='group',
+        height=400,
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    
+    return fig
+
+# ===============================
 # PDF Generation Function
 # ===============================
 def generate_pdf_report(result):
-    """Generate a PDF report of the health assessment"""
+    """Generate a PDF report of the health state prediction"""
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
     story = []
@@ -100,16 +350,16 @@ def generate_pdf_report(result):
     )
     
     # Title
-    title = Paragraph("HealthSense - Health Risk Assessment Report", title_style)
+    title = Paragraph("HealthSense - Health Prediction Report", title_style)
     story.append(title)
     
     # Date
-    date_text = Paragraph(f"<i>Assessment Date: {result.get('timestamp', 'N/A')}</i>", styles['Normal'])
+    date_text = Paragraph(f"<i>Prediction Date: {result.get('timestamp', 'N/A')}</i>", styles['Normal'])
     story.append(date_text)
     story.append(Spacer(1, 20))
     
     # Prediction Results Section
-    story.append(Paragraph("Assessment Results", heading_style))
+    story.append(Paragraph("Prediction Results", heading_style))
     
     prediction = result["prediction"]
     probability = result["probability"]
@@ -222,7 +472,7 @@ def generate_pdf_report(result):
         textColor=colors.grey
     )
     disclaimer_text = Paragraph(
-        "<i>Disclaimer: This assessment is for informational purposes only and does not replace professional medical advice. Please consult with a healthcare provider for a comprehensive evaluation.</i>",
+        "<i>Disclaimer: This report is for informational purposes only and does not replace professional medical advice. Please consult with a healthcare provider for a comprehensive evaluation.</i>",
         disclaimer_style
     )
     story.append(disclaimer_text)
@@ -470,7 +720,7 @@ if st.session_state.show_history:
                 st.rerun()
 
 # ===============================
-# PAGE 1: INPUT FORM (Main Page)
+# PAGE NAVIGATION
 # ===============================
 elif st.session_state.current_page == "input":
     
@@ -481,7 +731,7 @@ elif st.session_state.current_page == "input":
             st_lottie(lottie_animation, height=200, key="health_anim")
     
     st.title("🩺 HealthSense - AI Health Risk Predictor")
-    st.markdown("### Welcome! Get Your Personalized Health Assessment")
+    st.markdown("### Welcome! Get Your Personalized Health Prediction")
     
     st.info("👇 **Get Started:** Fill in your health details below and click the **Predict** button at the bottom to receive your personalized health risk assessment.")
     
@@ -662,8 +912,9 @@ elif st.session_state.current_page == "input":
             # Navigate to results page
             st.session_state.current_page = "results"
             st.rerun()
+
 # ===============================
-# PAGE 2: RESULTS
+# RESULTS PAGE
 # ===============================
 elif st.session_state.current_page == "results":
     
@@ -677,20 +928,133 @@ elif st.session_state.current_page == "results":
     col1, col2 = st.columns([5, 1])
     with col2:
         pdf_bytes = generate_pdf_report(result)
+        current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
         st.download_button(
             label="📥 PDF Report",
             data=pdf_bytes,
-            file_name=f"HealthSense_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            file_name=f"HealthSense_Report_{current_time}.pdf",
             mime="application/pdf",
             type="primary",
             use_container_width=True
         )
     
-    st.title("🩺 HealthSense - Your Health Risk Assessment")
+    st.title("🩺 HealthSense - Your Health Results")
     st.caption(f"Assessment Date: {timestamp}")
     st.divider()
     
+    # ===============================
+    # Enhanced Visualization Section
+    # ===============================
+    st.subheader("📊 Visual Health Analysis")
+    
+    # Create columns for gauge and trend
+    viz_col1, viz_col2 = st.columns(2)
+    
+    with viz_col1:
+        # Health Gauge Chart
+        if prediction_proba is not None:
+            risk_percent = prediction_proba * 100
+            gauge_fig = create_health_gauge(risk_percent)
+            st.plotly_chart(gauge_fig, use_container_width=True)
+    
+    with viz_col2:
+        # Risk Trend Chart (if history available)
+        if len(st.session_state.prediction_history) >= 2:
+            trend_fig = create_risk_trend_chart(st.session_state.prediction_history)
+            if trend_fig:
+                st.plotly_chart(trend_fig, use_container_width=True)
+        else:
+            st.info("📈 **Risk Trend Analysis**\n\nComplete more predictions to see your health trend over time!")
+    
+    st.divider()
+    
+    # ===============================
+    # Health Metrics Comparison Section
+    # ===============================
+    st.subheader("🔍 Detailed Health Metrics")
+    
+    metrics_tab1, metrics_tab2, metrics_tab3 = st.tabs([
+        "📊 Radar Comparison", 
+        "📈 Feature Analysis", 
+        "📋 Distribution Comparison"
+    ])
+    
+    with metrics_tab1:
+        st.markdown("**Compare your health metrics with population averages:**")
+        radar_fig = create_health_radar_chart(user_input, df_features)
+        if radar_fig:
+            st.plotly_chart(radar_fig, use_container_width=True)
+        else:
+            st.info("Insufficient data for radar chart comparison.")
+    
+    with metrics_tab2:
+        st.markdown("**See how your values compare to population statistics:**")
+        comparison_fig = create_feature_comparison_chart(user_input, df_features)
+        if comparison_fig:
+            st.plotly_chart(comparison_fig, use_container_width=True)
+        else:
+            st.info("Insufficient data for feature comparison.")
+    
+    with metrics_tab3:
+        st.markdown("**Analyze specific features in detail:**")
+        dist_feature = st.selectbox(
+            "Select a feature to analyze:",
+            numeric_cols,
+            format_func=lambda x: x.replace('_', ' ').title()
+        )
+        
+        if dist_feature in df_features.columns:
+            fig = px.histogram(
+                df_features, 
+                x=dist_feature, 
+                nbins=30, 
+                opacity=0.7, 
+                title=f"{dist_feature.replace('_', ' ').title()} - Population Distribution",
+                labels={dist_feature: dist_feature.replace('_', ' ').title()},
+                color_discrete_sequence=['#636EFA']
+            )
+            
+            # Add user value
+            user_value = user_input.get(dist_feature)
+            if user_value is not None:
+                try:
+                    user_value = float(user_value)
+                    fig.add_vline(
+                        x=user_value,
+                        line_dash="dash",
+                        line_color="red",
+                        line_width=3,
+                        annotation_text="Your Value",
+                        annotation_position="top right"
+                    )
+                except ValueError:
+                    pass
+            
+            fig.update_layout(
+                bargap=0.05,
+                showlegend=False,
+                height=450,
+                xaxis_title=dist_feature.replace('_', ' ').title(),
+                yaxis_title="Count"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Show statistics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Your Value", f"{user_value:.2f}" if isinstance(user_value, (int, float)) else str(user_value))
+            with col2:
+                st.metric("Population Mean", f"{df_features[dist_feature].mean():.2f}")
+            with col3:
+                st.metric("Population Median", f"{df_features[dist_feature].median():.2f}")
+            with col4:
+                st.metric("Population Std Dev", f"{df_features[dist_feature].std():.2f}")
+    
+    st.divider()
+    
+    # ===============================
     # Main prediction result - VERTICAL LAYOUT
+    # ===============================
     st.subheader("📊 Prediction Results")
     
     # VERTICAL LAYOUT - Status, Risk Level, Quick Stats in order
@@ -758,7 +1122,7 @@ elif st.session_state.current_page == "results":
             with risk_col2:
                 # Risk interpretation
                 st.markdown(f"""
-                <div style="padding: 15px; border-radius: 8px; background-color: #f8f9fa; border-left: 5px solid {progress_color}; margin-top: 10px;">
+                <div style="padding: 10px; border-radius: 8px; background-color: #f8f9fa; border-left: 5px solid {progress_color}; margin-top: 10px;">
                 <h4 style="margin: 0; color: {progress_color};">{risk_label}</h4>
                 <p style="margin: 5px 0 0 0; font-size: 14px;">{risk_description}</p>
                 </div>
@@ -781,7 +1145,7 @@ elif st.session_state.current_page == "results":
             st.metric(
                 label="Features Analyzed", 
                 value=total_features,
-                help="Number of health indicators used in this assessment"
+                help="Number of health indicators used in this Prediction"
             )
         
         with stat_col2:
@@ -810,92 +1174,9 @@ elif st.session_state.current_page == "results":
     
     st.divider()
     
-    # Risk Summary Card
-    if prediction_proba is not None:
-        risk_percent = prediction_proba * 100
-        
-        # Create a comprehensive risk summary
-        st.markdown("### 📋 Detailed Analysis")
-        
-        summary_col1, summary_col2 = st.columns([2, 1])
-        
-        with summary_col1:
-            # Risk indicators
-            st.markdown("#### 🔍 Key Findings")
-            
-            # Analyze key health metrics
-            critical_findings = []
-            warning_findings = []
-            good_findings = []
-            
-            # BMI analysis
-            bmi = user_input.get("bmi")
-            if isinstance(bmi, (int, float)):
-                if bmi > 30:
-                    critical_findings.append(f"BMI: {bmi:.1f} (Obese)")
-                elif bmi > 25:
-                    warning_findings.append(f"BMI: {bmi:.1f} (Overweight)")
-                else:
-                    good_findings.append(f"BMI: {bmi:.1f} (Normal)")
-            
-            # Blood pressure analysis
-            bp = user_input.get("blood_pressure")
-            if isinstance(bp, (int, float)):
-                if bp > 140:
-                    critical_findings.append(f"Blood Pressure: {bp:.0f} mmHg (High)")
-                elif bp > 120:
-                    warning_findings.append(f"Blood Pressure: {bp:.0f} mmHg (Elevated)")
-                else:
-                    good_findings.append(f"Blood Pressure: {bp:.0f} mmHg (Normal)")
-            
-            # Display findings
-            if critical_findings:
-                st.error("#### ⚠️ Critical Areas")
-                for finding in critical_findings:
-                    st.write(f"• {finding}")
-            
-            if warning_findings:
-                st.warning("#### 📝 Areas for Improvement")
-                for finding in warning_findings:
-                    st.write(f"• {finding}")
-            
-            if good_findings and not critical_findings:
-                st.success("#### ✅ Positive Indicators")
-                for finding in good_findings:
-                    st.write(f"• {finding}")
-        
-        with summary_col2:
-            # Next steps
-            st.markdown("#### 🎯 Recommended Actions")
-            
-            if risk_percent <= 30:
-                st.success("""
-                **Maintain Your Health:**
-                • Continue healthy habits
-                • Regular check-ups
-                • Balanced nutrition
-                • Stay active
-                """)
-            elif risk_percent <= 70:
-                st.warning("""
-                **Take Action:**
-                • Consult healthcare provider
-                • Improve lifestyle factors
-                • Monitor key metrics
-                • Set health goals
-                """)
-            else:
-                st.error("""
-                **Immediate Attention:**
-                • Consult doctor promptly
-                • Comprehensive evaluation
-                • Lifestyle changes
-                • Regular monitoring
-                """)
-    
-    st.divider()
-    
+    # ===============================
     # Personalized Recommendations
+    # ===============================
     st.subheader("💡 Personalized Health Recommendations")
     
     recommendations = []
@@ -952,74 +1233,15 @@ elif st.session_state.current_page == "results":
         You're maintaining healthy lifestyle choices across all major health indicators. 
         Continue with your current routine and regular health check-ups.
         """)
-
-    # Rest of your existing code for Feature Analysis Section remains the same...
+    
     st.divider()
     
-    # Feature Analysis Section
-    st.subheader("🔎 Detailed Feature Analysis")
+    # ===============================
+    # Your Input Summary Tab
+    # ===============================
+    st.subheader("📋 Your Health Data Summary")
     
-    tab1, tab2 = st.tabs(["📊 Distribution Comparison", "📋 Your Input Summary"])
-    
-    with tab1:
-        st.markdown("**Compare your values with the overall population distribution:**")
-        dist_feature = st.selectbox(
-            "Select a feature to analyze:",
-            numeric_cols,
-            format_func=lambda x: x.replace('_', ' ').title()
-        )
-        
-        if dist_feature in df_features.columns:
-            fig = px.histogram(
-                df_features, 
-                x=dist_feature, 
-                nbins=30, 
-                opacity=0.7, 
-                title=f"{dist_feature.replace('_', ' ').title()} - Population Distribution",
-                labels={dist_feature: dist_feature.replace('_', ' ').title()},
-                color_discrete_sequence=['#636EFA']
-            )
-            
-            # Add user value
-            user_value = user_input.get(dist_feature)
-            if user_value is not None:
-                try:
-                    user_value = float(user_value)
-                    fig.add_vline(
-                        x=user_value,
-                        line_dash="dash",
-                        line_color="red",
-                        line_width=3,
-                        annotation_text="Your Value",
-                        annotation_position="top right"
-                    )
-                except ValueError:
-                    pass
-            
-            fig.update_layout(
-                bargap=0.05,
-                showlegend=False,
-                height=450,
-                xaxis_title=dist_feature.replace('_', ' ').title(),
-                yaxis_title="Count"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Show statistics
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Your Value", f"{user_value:.2f}" if isinstance(user_value, (int, float)) else str(user_value))
-            with col2:
-                st.metric("Population Mean", f"{df_features[dist_feature].mean():.2f}")
-            with col3:
-                st.metric("Population Median", f"{df_features[dist_feature].median():.2f}")
-            with col4:
-                st.metric("Population Std Dev", f"{df_features[dist_feature].std():.2f}")
-    
-    with tab2:
-     st.markdown("**Review all the information you provided:**")
-    
-    # Edit button moved to LEFT corner - simple approach
+    # Edit button moved to LEFT corner
     if st.button("✏️ Edit Data", type="primary"):
         st.session_state.current_page = "input"
         st.rerun()
@@ -1055,3 +1277,11 @@ elif st.session_state.current_page == "results":
             st.session_state.current_page = "input"
             st.session_state.prediction_result = None
             st.rerun()
+
+# ===============================
+# DEFAULT PAGE HANDLER
+# ===============================
+else:
+    # If page state is invalid, reset to input page
+    st.session_state.current_page = "input"
+    st.rerun()
