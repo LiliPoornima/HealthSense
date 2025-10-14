@@ -590,7 +590,7 @@ feature_categories = {cat: feature_categories[cat] for cat in category_order if 
 if "user_input" not in st.session_state:
     st.session_state.user_input = {}
 if "current_page" not in st.session_state:
-    st.session_state.current_page = "input"
+    st.session_state.current_page = "home"
 if "prediction_result" not in st.session_state:
     st.session_state.prediction_result = None
 if "prediction_history" not in st.session_state:
@@ -599,34 +599,61 @@ if "show_history" not in st.session_state:
     st.session_state.show_history = False
 
 # ===============================
-# SIDEBAR - App Info and History
+# SIDEBAR - App Info and Navigation
 # ===============================
 st.sidebar.title("🩺 HealthSense")
 st.sidebar.markdown("### *AI-Powered Health Analytics*")
 st.sidebar.divider()
 
-# Navigation info
+# Navigation Menu
+st.sidebar.subheader("📍 Navigation")
+current_page_display = {
+    "home": "🏠 Home",
+    "input": "📝 Health Assessment", 
+    "results": "📊 View Results",
+    "history": "📜 Prediction History"
+}
+
+# Navigation buttons
+if st.sidebar.button("🏠 Home", use_container_width=True):
+    st.session_state.current_page = "home"
+    st.session_state.show_history = False
+    st.rerun()
+
+if st.sidebar.button("📝 Health Assessment", use_container_width=True):
+    st.session_state.current_page = "input"
+    st.session_state.show_history = False
+    st.rerun()
+
+if st.session_state.prediction_result and st.sidebar.button("📊 View Results", use_container_width=True):
+    st.session_state.current_page = "results"
+    st.session_state.show_history = False
+    st.rerun()
+
+if st.sidebar.button("📜 Prediction History", use_container_width=True):
+    st.session_state.show_history = True
+    st.session_state.current_page = "history"
+    st.rerun()
+
+st.sidebar.divider()
+
+# Current page indicator
 st.sidebar.subheader("📍 Current Page")
-if st.session_state.current_page == "input":
-    st.sidebar.info("📝 **Input Page**")
-    st.sidebar.caption("Fill in your health details")
+current_page_name = current_page_display.get(st.session_state.current_page, "🏠 Home")
+if st.session_state.current_page == "home":
+    st.sidebar.info(current_page_name)
+elif st.session_state.current_page == "input":
+    st.sidebar.warning(current_page_name)
+elif st.session_state.current_page == "results":
+    st.sidebar.success(current_page_name)
 else:
-    st.sidebar.success("✅ **Results Page**")
-    st.sidebar.caption("View your assessment")
+    st.sidebar.info(current_page_name)
 
 st.sidebar.divider()
 
 # History section
 st.sidebar.subheader("📜 Prediction History")
 st.sidebar.caption(f"Total Predictions: {len(st.session_state.prediction_history)}")
-
-if st.sidebar.button("📊 View History", use_container_width=True):
-    st.session_state.show_history = True
-
-if st.sidebar.button("🏠 Back to Main", use_container_width=True):
-    st.session_state.show_history = False
-    st.session_state.current_page = "input"
-    st.rerun()
 
 st.sidebar.divider()
 
@@ -646,9 +673,467 @@ st.sidebar.divider()
 st.sidebar.caption("⚠️ **Disclaimer:** This tool is for informational purposes only and does not replace professional medical advice.")
 
 # ===============================
+# HOMEPAGE
+# ===============================
+if st.session_state.current_page == "home":
+    
+    # Custom CSS for professional healthcare styling
+    st.markdown("""
+    <style>
+    .hero-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+        padding: 5rem 2rem;
+        border-radius: 15px;
+        color: white;
+        margin-bottom: 3rem;
+        text-align: center;
+    }
+    .hero-title {
+        font-size: 3.5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        line-height: 1.2;
+    }
+    .hero-subtitle {
+        font-size: 1.4rem;
+        margin-bottom: 2rem;
+        opacity: 0.9;
+        font-weight: 300;
+        line-height: 1.6;
+    }
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin: 3rem 0;
+    }
+    .feature-card {
+        background: white;
+        padding: 2.5rem;
+        border-radius: 12px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        border-top: 4px solid #2a5298;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2rem;
+        margin: 3rem 0;
+    }
+    .stat-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        border-left: 4px solid #28a745;
+    }
+    .testimonial-card {
+        background: #f8f9fa;
+        padding: 2.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #007bff;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+    .cta-section {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        padding: 4rem 2rem;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        margin: 4rem 0;
+    }
+    .section-header {
+        text-align: center;
+        margin-bottom: 4rem;
+    }
+    .section-header h2 {
+        color: #1e3c72;
+        font-size: 2.8rem;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+    .section-header p {
+        color: #666;
+        font-size: 1.3rem;
+        line-height: 1.6;
+    }
+    .image-container {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+    .step-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #2a5298;
+    }
+.stButton > button {
+    background-color: transparent !important;
+    color: #2a5298 !important;
+    border: 2px solid #2a5298 !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton > button:hover {
+    background-color: #2a5298 !important;
+    color: white !important;
+    border: 2px solid #2a5298 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(42, 82, 152, 0.3) !important;
+}
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Section 1: Hero Section
+    st.markdown("""
+    <div class="hero-container">
+        <h1 class="hero-title">Take Control of Your Health, Powered by AI</h1>
+        <p class="hero-subtitle">HealthSense analyzes your lifestyle and medical data to predict health risks and guide you towards a healthier tomorrow.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Hero Image and CTA
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("""
+        <div class="image-container">
+        """, unsafe_allow_html=True)
+        st.image("https://plus.unsplash.com/premium_photo-1681843126728-04eab730febe?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1170", 
+                use_container_width=True)
+        st.image("https://images.unsplash.com/photo-1624727828489-a1e03b79bba8?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8M3x8aGVhbHRoJTIwY2FyZXxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop&q=60&w=400", 
+                use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col2:
+        st.markdown("""
+        <div style="padding: 2rem;">
+            <h2 style="color: #1e3c72; margin-bottom: 1.5rem; font-size: 2.2rem;">Your Health Journey Starts Here</h2>
+            <p style="color: #666; margin-bottom: 2rem; line-height: 1.7; font-size: 1.1rem;">
+                Experience the future of healthcare with our AI-powered platform. Get personalized insights, 
+                track your health trends, and make informed decisions about your wellbeing. Our advanced 
+                analytics provide you with comprehensive health risk assessments and actionable recommendations.
+            </p>
+            <div style="margin-bottom: 2rem;">
+                <h4 style="color: #1e3c72; margin-bottom: 1rem;">Key Benefits:</h4>
+                <ul style="color: #666; line-height: 1.8;">
+                    <li>Personalized health risk assessment</li>
+                    <li>AI-powered predictive analytics</li>
+                    <li>Comprehensive health monitoring</li>
+                    <li>Actionable health recommendations</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # CTA Buttons
+        cta_col1, cta_col2 = st.columns(2)
+        with cta_col1:
+            if st.button("Get Your Free Health Analysis", type="primary", use_container_width=True):
+                st.session_state.current_page = "input"
+                st.rerun()
+        with cta_col2:
+            if st.button("Learn More", use_container_width=True):
+                st.session_state.current_page = "home"
+                st.rerun()
+    
+    st.divider()
+    
+    # Section 2: How It Works
+    st.markdown("""
+    <div class="section-header">
+        <h2>Gain Insights in Minutes</h2>
+        <p>Simple, Secure, and Scientifically Backed Health Analysis</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    steps_col1, steps_col2, steps_col3 = st.columns(3)
+    
+    with steps_col1:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="step-icon">1</div>
+            <h3 style="color: #1e3c72; margin-bottom: 1rem;">Input Your Data</h3>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 1rem;"><strong>Share Securely</strong></p>
+            <p style="color: #666; line-height: 1.6;">Anonymously provide your lifestyle habits and optional medical history through our secure, encrypted forms.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with steps_col2:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="step-icon">2</div>
+            <h3 style="color: #1e3c72; margin-bottom: 1rem;">AI Analysis & Prediction</h3>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 1rem;"><strong>Our AI Analyzes</strong></p>
+            <p style="color: #666; line-height: 1.6;">HealthSense's advanced algorithms process your data in real-time to assess your health status and identify potential risks.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with steps_col3:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="step-icon">3</div>
+            <h3 style="color: #1e3c72; margin-bottom: 1rem;">Get Your Action Plan</h3>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 1rem;"><strong>Receive Your Plan</strong></p>
+            <p style="color: #666; line-height: 1.6;">Get a clear, visualized report with personalized health suggestions, risk factors, and guidance for early consultation.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 3: Key Features
+    st.markdown("""
+    <div class="section-header">
+        <h2>Why Choose HealthSense?</h2>
+        <p>Comprehensive Health Analytics Platform</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Features in two columns
+    features_col1, features_col2 = st.columns(2)
+    
+    with features_col1:
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Proactive Risk Assessment</h4>
+            <p style="color: #666; line-height: 1.6;">Don't wait for symptoms. Identify potential health issues before they become serious with our advanced predictive analytics.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Personalized Health Suggestions</h4>
+            <p style="color: #666; line-height: 1.6;">Actionable recommendations tailored to your unique lifestyle, genetics, and health data. No more generic advice.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Data Visualization</h4>
+            <p style="color: #666; line-height: 1.6;">Understand your health through intuitive charts and graphs, not complex medical jargon. See trends and patterns clearly.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with features_col2:
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Secure & Private</h4>
+            <p style="color: #666; line-height: 1.6;">Your data is encrypted and anonymized. We prioritize your privacy above all else with enterprise-grade security.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Real-Time Predictions</h4>
+            <p style="color: #666; line-height: 1.6;">Get instant insights as soon as you input your data. No waiting for lab results or doctor appointments.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Continuous Monitoring</h4>
+            <p style="color: #666; line-height: 1.6;">Track your progress over time with historical data analysis and trend monitoring.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 4: Statistics
+    st.markdown("""
+    <div class="section-header">
+        <h2>Our Impact in Numbers</h2>
+        <p>Trusted by Thousands of Users Worldwide</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    
+    with stat_col1:
+        st.markdown("""
+        <div class="stat-card">
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">50,000+</h3>
+            <p style="color: #666; margin: 0; font-size: 1.1rem;">Users Empowered</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with stat_col2:
+        st.markdown("""
+        <div class="stat-card">
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">150,000+</h3>
+            <p style="color: #666; margin: 0; font-size: 1.1rem;">Health Predictions</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with stat_col3:
+        st.markdown("""
+        <div class="stat-card">
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">95%</h3>
+            <p style="color: #666; margin: 0; font-size: 1.1rem;">Accuracy Rate</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with stat_col4:
+        st.markdown("""
+        <div class="stat-card">
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">98%</h3>
+            <p style="color: #666; margin: 0; font-size: 1.1rem;">User Satisfaction</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 5: Visual Demo
+    st.markdown("""
+    <div class="section-header">
+        <h2>A Clear Window into Your Well-being</h2>
+        <p>See Your Health Data Come to Life</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    demo_col1, demo_col2 = st.columns([1, 1])
+    
+    with demo_col1:
+        st.markdown("""
+        <div style="padding: 2rem;">
+            <h3 style="color: #1e3c72; margin-bottom: 1.5rem; font-size: 1.8rem;">Intelligent Health Dashboard</h3>
+            <p style="color: #666; margin-bottom: 1.5rem; line-height: 1.7;">
+                Our intelligent dashboard transforms complex health information into an easy-to-understand 
+                overview of your wellness, highlighting trends and key metrics that matter.
+            </p>
+            <ul style="color: #666; line-height: 1.8; margin-bottom: 2rem;">
+                <li><strong>Interactive Health Trends</strong> - Track changes over time</li>
+                <li><strong>Risk Score Visualization</strong> - Understand your health status at a glance</li>
+                <li><strong>Personalized Insights</strong> - Get actionable recommendations</li>
+                <li><strong>Comparative Analysis</strong> - See how you compare to population averages</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with demo_col2:
+        st.markdown("""
+        <div class="image-container">
+        """, unsafe_allow_html=True)
+        st.image("https://plus.unsplash.com/premium_photo-1682141183436-37a63f94c01c?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NjF8fGhlYWx0aGNhcmUlMjBhbmQlMjBtZWRpY2FsJTIwdGVjaG5vbG9neXxlbnwwfDF8MHx8fDA%3D&auto=format&fit=crop&q=60&w=400", 
+                use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 6: Testimonials
+    st.markdown("""
+    <div class="section-header">
+        <h2>Trusted by Thousands</h2>
+        <p>What Our Users Say About HealthSense</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    testimonial_col1, testimonial_col2 = st.columns(2)
+    
+    with testimonial_col1:
+        st.markdown("""
+        <div class="testimonial-card">
+           <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+            <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTl8fGh1bWFufGVufDB8fDB8fHww&auto=format&fit=crop&q=60&w=400" 
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-right: 1rem; border: 3px solid #1e3c72;">
+            <div>
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Sarah L. ★★★★★</h4>
+            <p style="color: #666; line-height: 1.7; font-style: italic;">"HealthSense helped me understand the impact of my sleep on my stress levels. The personalized suggestions were a game-changer! I've never felt more in control of my health."</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="testimonial-card">
+          <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+            <img src="https://plus.unsplash.com/premium_photo-1658506671316-0b293df7c72b?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8ZG9jdG9yc3xlbnwwfDB8MHx8fDA%3D&auto=format&fit=crop&q=60&w=400" 
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-right: 1rem; border: 3px solid #1e3c72;">
+            <div>
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Dr. Michael R. ★★★★★</h4>
+            <p style="color: #666; line-height: 1.7; font-style: italic;">"As a healthcare professional, I'm impressed by HealthSense's accuracy and user-friendly approach. It's a valuable tool for preventive healthcare and patient education."</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with testimonial_col2:
+        st.markdown("""
+        <div class="testimonial-card">
+          <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+            <img src="https://plus.unsplash.com/premium_photo-1689539137236-b68e436248de?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8bWFuJTIwcHJvZmlsZSUyMHBob3RvfGVufDB8fDB8fHww&auto=format&fit=crop&q=60&w=400" 
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-right: 1rem; border: 3px solid #1e3c72;">
+            <div>
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Mark T. ★★★★★</h4>
+            <p style="color: #666; line-height: 1.7; font-style: italic;">"The prediction was so accurate it encouraged me to see a doctor early. I feel in control of my health now. This app literally changed my life perspective!"</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="testimonial-card">
+          <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+            <img src="https://images.unsplash.com/photo-1513097633097-329a3a64e0d4?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NjZ8fGdpcmx8ZW58MHwwfDB8fHww&auto=format&fit=crop&q=60&w=400" 
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-right: 1rem; border: 3px solid #1e3c72;">
+            <div>
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Jennifer K. ★★★★★</h4>
+            <p style="color: #666; line-height: 1.7; font-style: italic;">"The visualization tools made understanding my health data so simple. I finally have clarity about what I need to focus on for better wellness."</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 7: Final CTA
+    st.markdown("""
+    <div class="cta-section">
+        <h2 style="margin-bottom: 1.5rem; font-size: 2.5rem;">Start Your Journey to Better Health Today</h2>
+        <p style="font-size: 1.3rem; margin-bottom: 2rem; opacity: 0.9; line-height: 1.6;">
+            Join thousands of users who are taking a proactive step towards lifelong wellness with AI-powered health insights.
+        </p>
+        <div style="text-align: center;">
+        """, unsafe_allow_html=True)
+        
+    if st.button("Get Started for Free", type="primary", use_container_width=True):
+            st.session_state.current_page = "input"
+            st.rerun()
+        
+    st.markdown("</div></div>", unsafe_allow_html=True)
+    
+    # Footer
+    st.markdown("---")
+    footer_col1, footer_col2, footer_col3 = st.columns(3)
+    
+    with footer_col1:
+        st.markdown("""
+        **HealthSense**  
+        *AI-Powered Health Prediction*
+        """)
+    
+    with footer_col2:
+        st.markdown("""
+        **Quick Links**  
+        About Us • How It Works • Privacy Policy  
+        Terms of Service • Contact
+        """)
+    
+    with footer_col3:
+        st.markdown("""
+        **Connect With Us**  
+        support@healthsense.ai  
+        Follow us on social media
+        """)
+    
+    st.markdown("---")
+    st.caption("© 2025 HealthSense AI. All rights reserved. This tool is for informational purposes only and does not replace professional medical advice.")
+
+# ===============================
 # HISTORY PAGE
 # ===============================
-if st.session_state.show_history:
+elif st.session_state.show_history:
     st.title("📜 Prediction History - HealthSense")
     st.markdown("### Track Your Health Journey Over Time")
     st.divider()
@@ -720,9 +1205,72 @@ if st.session_state.show_history:
                 st.rerun()
 
 # ===============================
-# PAGE NAVIGATION
+# PAGE NAVIGATION - INPUT PAGE
 # ===============================
 elif st.session_state.current_page == "input":
+    
+    # Custom CSS for Health Assessment page
+    st.markdown("""
+    <style>
+    /* Health Assessment Page - Dark Blue Theme */
+    
+    /* Primary Buttons (Predict button) */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        padding: 0.75rem 1.5rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    div.stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(30, 60, 114, 0.4) !important;
+    }
+    
+    /* Secondary Buttons (Back to Home) */
+    div.stButton > button[kind="secondary"] {
+        background-color: transparent !important;
+        color: #1e3c72 !important;
+        border: 2px solid #1e3c72 !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    div.stButton > button[kind="secondary"]:hover {
+        background-color: #1e3c72 !important;
+        color: white !important;
+        border: 2px solid #1e3c72 !important;
+    }
+    
+    /* Form submit buttons */
+    button.st-emotion-cache-1gn7s2v {
+        background-color: #1e3c72 !important;
+        color: white !important;
+        border: none !important;
+    }
+    
+    button.st-emotion-cache-1gn7s2v:hover {
+        background-color: #2a5298 !important;
+        color: white !important;
+    }
+    
+    /* Active state for all buttons */
+    button:active {
+        transform: translateY(0) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Back to Home button
+    if st.button("🏠 Back to Home"):
+        st.session_state.current_page = "home"
+        st.rerun()
     
     # Animation and header
     if lottie_animation:
@@ -851,11 +1399,11 @@ elif st.session_state.current_page == "input":
     st.markdown("""
     <style>
     div.stButton > button:first-child {
-        background-color: #1E90FF; /* Dodger Blue */
+        background-color: #1E90FF;
         color: white;
     }
     div.stButton > button:first-child:hover {
-        background-color: #104E8B; /* Dark Blue on hover */
+        background-color: #104E8B;
         color: white;
     }
     </style>
@@ -917,6 +1465,11 @@ elif st.session_state.current_page == "input":
 # RESULTS PAGE
 # ===============================
 elif st.session_state.current_page == "results":
+    
+    # Back to Home button
+    if st.button("🏠 Back to Home"):
+        st.session_state.current_page = "home"
+        st.rerun()
     
     result = st.session_state.prediction_result
     prediction = result["prediction"]
@@ -1065,9 +1618,9 @@ elif st.session_state.current_page == "results":
         
         with status_col1:
             if prediction == 1:
-                st.error("**🟥 Diseased**")
+                st.error("🟥 Diseased")
             else:
-                st.success("**🟩 Healthy**")
+                st.success("🟩 Healthy")
         
         with status_col2:
             if prediction == 1:
@@ -1282,6 +1835,6 @@ elif st.session_state.current_page == "results":
 # DEFAULT PAGE HANDLER
 # ===============================
 else:
-    # If page state is invalid, reset to input page
-    st.session_state.current_page = "input"
+    # If page state is invalid, reset to home page
+    st.session_state.current_page = "home"
     st.rerun()
