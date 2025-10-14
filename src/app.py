@@ -126,46 +126,51 @@ def create_risk_trend_chart(history):
     if len(history) < 2:
         return None
     
-    # Extract data from history
-    dates = [record['timestamp'] for record in history]
-    risks = [record['probability'] * 100 if record['probability'] is not None else 0 
-             for record in history]
+    try:
+        # Extract data from history
+        dates = [record['timestamp'] for record in history]
+        risks = [record['probability'] * 100 if record['probability'] is not None else 0 
+                 for record in history]
+        
+        fig = go.Figure()
+        
+        # Add risk trend line
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=risks,
+            mode='lines+markers',
+            name='Risk Score',
+            line=dict(color='#636EFA', width=3),
+            marker=dict(size=10, color='#636EFA', line=dict(color='white', width=2)),
+            hovertemplate='<b>Date:</b> %{x}<br><b>Risk:</b> %{y:.1f}%<extra></extra>'
+        ))
+        
+        # Add reference lines
+        fig.add_hline(y=30, line_dash="dash", line_color="green", 
+                      annotation_text="Low Risk Threshold", annotation_position="right")
+        fig.add_hline(y=70, line_dash="dash", line_color="red", 
+                      annotation_text="High Risk Threshold", annotation_position="right")
+        
+        fig.update_layout(
+            title="Your Health Risk Trend Over Time",
+            xaxis_title="Date",
+            yaxis_title="Risk Score (%)",
+            yaxis_range=[0, 100],
+            hovermode='x unified',
+            showlegend=False,
+            height=400,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='white'
+        )
+        
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        
+        return fig
     
-    fig = go.Figure()
-    
-    # Add risk trend line
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=risks,
-        mode='lines+markers',
-        name='Risk Score',
-        line=dict(color='#636EFA', width=3),
-        marker=dict(size=10, color='#636EFA', line=dict(color='white', width=2)),
-        hovertemplate='<b>Date:</b> %{x}<br><b>Risk:</b> %{y:.1f}%<extra></extra>'
-    ))
-    
-    # Add reference lines
-    fig.add_hline(y=30, line_dash="dash", line_color="green", 
-                  annotation_text="Low Risk Threshold", annotation_position="right")
-    fig.add_hline(y=70, line_dash="dash", line_color="red", 
-                  annotation_text="High Risk Threshold", annotation_position="right")
-    
-    fig.update_layout(
-        title="Your Health Risk Trend Over Time",
-        xaxis_title="Date",
-        yaxis_title="Risk Score (%)",
-        yaxis_range=[0, 100],
-        hovermode='x unified',
-        showlegend=False,
-        height=400,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='white'
-    )
-    
-    fig.update_xaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
-    fig.update_yaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
-    
-    return fig
+    except Exception as e:
+        st.error(f"Error creating trend chart: {e}")
+        return None
 
 # ===============================
 # Function to create Health Category Radar Chart
@@ -1023,7 +1028,7 @@ if st.session_state.current_page == "home":
         st.markdown("""
         <div class="image-container">
         """, unsafe_allow_html=True)
-        st.image("https://plus.unsplash.com/premium_photo-1682141183436-37a63f94c01c?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NjF8fGhlYWx0aGNhcmUlMjBhbmQlMjBtZWRpY2FsJTIwdGVjaG5vbG9neXxlbnwwfDF8MHx8fDA%3D&auto=format&fit=crop&q=60&w=400", 
+        st.image("https://plus.unsplash.com/premium_photo-1698421947098-d68176a8f5b2?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8aGVhbHRoY2FyZSUyMHRlY2hub2xvZ3l8ZW58MHwxfDB8fHww&auto=format&fit=crop&q=60&w=500", 
                 use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
     
@@ -1504,20 +1509,78 @@ elif st.session_state.current_page == "results":
     viz_col1, viz_col2 = st.columns(2)
     
     with viz_col1:
-        # Health Gauge Chart
-        if prediction_proba is not None:
-            risk_percent = prediction_proba * 100
-            gauge_fig = create_health_gauge(risk_percent)
-            st.plotly_chart(gauge_fig, use_container_width=True)
+    # Health Progress Bars (replacing gauge chart)
+     if prediction_proba is not None:
+        risk_percent = prediction_proba * 100
+        health_score = 100 - risk_percent
+        
+        def create_health_progress_dashboard(user_input, health_score, risk_percent):
+            """Create a progress bar dashboard for health metrics"""
+            
+            # Main health score
+            st.markdown(f"### Overall Health Score: **{health_score:.0f}/100**")
+            
+            if risk_percent <= 30:
+                st.success("🟢 **Low Risk** - Excellent health indicators")
+                color = "green"
+            elif risk_percent <= 70:
+                st.warning("🟡 **Moderate Risk** - Some areas need attention")
+                color = "orange"
+            else:
+                st.error("🔴 **High Risk** - Professional consultation recommended")
+                color = "red"
+            
+            st.progress(int(health_score), text=f"Health Score: {health_score:.1f}%")
+            
+            # Key metrics progress bars
+            st.markdown("### Key Health Metrics")
+            
+            metrics_to_show = [
+                ('bmi', 'Body Mass Index', 18.5, 24.9),
+                ('blood_pressure', 'Blood Pressure', 90, 120),
+                ('sleep_hours', 'Sleep Quality', 7, 9),
+                ('physical_activity', 'Physical Activity', 2.5, 5)
+            ]
+            
+            for metric_key, metric_name, optimal_low, optimal_high in metrics_to_show:
+                if metric_key in user_input and isinstance(user_input[metric_key], (int, float)):
+                    value = user_input[metric_key]
+                    
+                    # Calculate score for progress bar
+                    if value <= optimal_low:
+                        score = (value / optimal_low) * 50
+                        status = "Below Range"
+                        bar_color = "orange"
+                    elif value <= optimal_high:
+                        score = 50 + ((value - optimal_low) / (optimal_high - optimal_low)) * 50
+                        status = "Optimal"
+                        bar_color = "green"
+                    else:
+                        score = max(0, 100 - (value - optimal_high))
+                        status = "Above Range"
+                        bar_color = "red"
+                    
+                    score = max(0, min(100, score))
+                    
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**{metric_name}**")
+                        st.progress(int(score), text=f"{score:.0f}% - {status}")
+                    with col2:
+                        st.metric("Value", f"{value:.1f}")
+        
+        create_health_progress_dashboard(user_input, health_score, risk_percent)
     
     with viz_col2:
-        # Risk Trend Chart (if history available)
-        if len(st.session_state.prediction_history) >= 2:
-            trend_fig = create_risk_trend_chart(st.session_state.prediction_history)
-            if trend_fig:
-                st.plotly_chart(trend_fig, use_container_width=True)
+    # Risk Trend Chart (if history available)
+     if len(st.session_state.prediction_history) >= 2:
+        trend_fig = create_risk_trend_chart(st.session_state.prediction_history)
+        if trend_fig is not None:  # Check if figure was created successfully
+            st.plotly_chart(trend_fig, use_container_width=True)
         else:
-            st.info("📈 **Risk Trend Analysis**\n\nComplete more predictions to see your health trend over time!")
+            st.info("Unable to generate trend chart. Please check your prediction history data.")
+     else:
+        st.info("📈 **Risk Trend Analysis**\n\nComplete more predictions to see your health trend over time!")
     
     st.divider()
     
