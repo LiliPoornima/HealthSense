@@ -1590,26 +1590,28 @@ elif st.session_state.current_page == "results":
     st.subheader("🔍 Detailed Health Metrics")
     
     metrics_tab1, metrics_tab2, metrics_tab3 = st.tabs([
-        "📊 Radar Comparison", 
         "📈 Feature Analysis", 
+        "📊 Radar Comparison", 
         "📋 Distribution Comparison"
     ])
     
-    with metrics_tab1:
-        st.markdown("**Compare your health metrics with population averages:**")
-        radar_fig = create_health_radar_chart(user_input, df_features)
-        if radar_fig:
-            st.plotly_chart(radar_fig, use_container_width=True)
-        else:
-            st.info("Insufficient data for radar chart comparison.")
+   
     
-    with metrics_tab2:
+    with metrics_tab1:
         st.markdown("**See how your values compare to population statistics:**")
         comparison_fig = create_feature_comparison_chart(user_input, df_features)
         if comparison_fig:
             st.plotly_chart(comparison_fig, use_container_width=True)
         else:
             st.info("Insufficient data for feature comparison.")
+
+    with metrics_tab2:
+        st.markdown("**Compare your health metrics with population averages:**")
+        radar_fig = create_health_radar_chart(user_input, df_features)
+        if radar_fig:
+            st.plotly_chart(radar_fig, use_container_width=True)
+        else:
+            st.info("Insufficient data for radar chart comparison.")
     
     with metrics_tab3:
         st.markdown("**Analyze specific features in detail:**")
@@ -1668,85 +1670,7 @@ elif st.session_state.current_page == "results":
     
     st.divider()
     
-    # ===============================
-    # Main prediction result - VERTICAL LAYOUT
-    # ===============================
-    st.subheader("📊 Prediction Results")
     
-    # VERTICAL LAYOUT - Status, Risk Level, Quick Stats in order
-    with st.container():
-        # Status Section
-        st.markdown("### 🎯 Status")
-        status_col1, status_col2 = st.columns([1, 2])
-        
-        with status_col1:
-            if prediction == 1:
-                st.error("🟥 Diseased")
-            else:
-                st.success("🟩 Healthy")
-        
-        with status_col2:
-            if prediction == 1:
-                st.info("""
-                **Recommendation:** 
-                Please consult with a healthcare professional for further evaluation and guidance.
-                """)
-            else:
-                st.info("""
-                **Great news!** 
-                Your health indicators appear to be within normal ranges.
-                """)
-    
-    st.divider()
-    
-    # Risk Level Section
-    with st.container():
-        st.markdown("### 📈 Risk Level")
-        
-        if prediction_proba is not None:
-            risk_percent = prediction_proba * 100
-            
-            # Progress bar with color coding
-            if risk_percent <= 30:
-                progress_color = "green"
-                risk_label = "Low Risk"
-                risk_description = "Your health indicators suggest you are likely healthy."
-            elif 30 < risk_percent <= 70:
-                progress_color = "orange"
-                risk_label = "Moderate Risk"
-                risk_description = "Some health indicators need attention."
-            else:
-                progress_color = "red"
-                risk_label = "High Risk"
-                risk_description = "Multiple health indicators suggest elevated disease risk."
-            
-            # Display in columns for better layout
-            risk_col1, risk_col2 = st.columns([1, 2])
-            
-            with risk_col1:
-                # Risk metric
-                st.metric(
-                    label="Risk Score", 
-                    value=f"{risk_percent:.1f}%",
-                    delta=risk_label,
-                    delta_color="off"
-                )
-                
-                # Progress bar
-                st.progress(int(risk_percent) / 100, text=f"{risk_percent:.1f}%")
-            
-            with risk_col2:
-                # Risk interpretation
-                st.markdown(f"""
-                <div style="padding: 10px; border-radius: 8px; background-color: #f8f9fa; border-left: 5px solid {progress_color}; margin-top: 10px;">
-                <h4 style="margin: 0; color: {progress_color};">{risk_label}</h4>
-                <p style="margin: 5px 0 0 0; font-size: 14px;">{risk_description}</p>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.warning("Risk probability not available")
-    
-    st.divider()
     
     # Quick Stats Section
     with st.container():
