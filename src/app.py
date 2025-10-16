@@ -59,6 +59,63 @@ FEATURE_UNITS = {
 }
 
 # ===============================
+# Vital risk computation
+# ===============================
+def compute_vital_risk(user_input: dict) -> float:
+    """Compute a simple rule-based risk [0,1] from key vitals to avoid 0% when vitals are abnormal.
+
+    Uses common clinical cut-offs for quick heuristics. If a metric is missing, it's ignored.
+    """
+    risk_components = []
+
+    # Blood pressure (assumed systolic if single value is provided)
+    bp = user_input.get("blood_pressure") or user_input.get("systolic_bp")
+    if isinstance(bp, (int, float)):
+        if bp >= 140:
+            risk_components.append(0.8)
+        elif bp >= 130:
+            risk_components.append(0.6)
+        elif bp >= 120:
+            risk_components.append(0.35)
+
+    # Heart rate
+    hr = user_input.get("heart_rate")
+    if isinstance(hr, (int, float)):
+        if hr < 50 or hr > 110:
+            risk_components.append(0.5)
+        elif hr < 60 or hr > 100:
+            risk_components.append(0.3)
+
+    # BMI
+    bmi = user_input.get("bmi")
+    if isinstance(bmi, (int, float)):
+        if bmi >= 35:
+            risk_components.append(0.7)
+        elif bmi >= 30:
+            risk_components.append(0.5)
+        elif bmi >= 25:
+            risk_components.append(0.3)
+
+    # Sleep
+    sleep = user_input.get("sleep_hours") if "sleep_hours" in user_input else user_input.get("sleep")
+    if isinstance(sleep, (int, float)):
+        if sleep < 5:
+            risk_components.append(0.4)
+        elif sleep < 7:
+            risk_components.append(0.2)
+
+    # Oxygen saturation
+    spo2 = user_input.get("oxygen_saturation")
+    if isinstance(spo2, (int, float)) and spo2 < 94:
+        risk_components.append(0.6)
+
+    if not risk_components:
+        return 0.0
+
+    # Use max to reflect the most concerning indicator without inflating
+    return float(max(risk_components))
+
+# ===============================
 # Helper function to load Lottie animations
 # ===============================
 def load_lottieurl(url: str):
@@ -1334,6 +1391,24 @@ elif st.session_state.current_page == "input":
         "work_hours", "daily_steps", "meals_per_day", "physical_activity"
     ]
     
+    # Auto-calculate BMI and scaled BMI from height (cm) and weight (kg)
+    height_cm = st.session_state.user_input.get("height")
+    weight_kg = st.session_state.user_input.get("weight")
+    if isinstance(height_cm, (int, float)) and height_cm > 0 and isinstance(weight_kg, (int, float)) and weight_kg > 0:
+        height_m = float(height_cm) / 100.0
+        # Standard BMI = weight (kg) / height(m)^2
+        bmi_val = float(weight_kg) / (height_m * height_m)
+        st.session_state.user_input["bmi"] = round(bmi_val, 2)
+        
+        # Scaled BMI per research: weight / height^p, p in [1.6, 1.7]
+        bmi_scaled_16 = float(weight_kg) / (height_m ** 1.6)
+        st.session_state.user_input["bmi_scaled"] = round(bmi_scaled_16, 4)
+        
+        # If a corrected/alternate column exists in dataset, populate with exponent 1.7
+        if "bmi_corrected" in df_features.columns:
+            bmi_scaled_17 = float(weight_kg) / (height_m ** 1.7)
+            st.session_state.user_input["bmi_corrected"] = round(bmi_scaled_17, 4)
+    
     # Create input fields for each category
     for category, columns in feature_categories.items():
         with st.expander(category, expanded=(category == "👤 Personal Information")):
@@ -1355,6 +1430,35 @@ elif st.session_state.current_page == "input":
                     
                     if col in numeric_cols:
                         # Numeric input with units
+                        if col == "bmi":
+                            # Recompute BMI from the latest height/weight user inputs
+                            h_cm = st.session_state.user_input.get("height")
+                            w_kg = st.session_state.user_input.get("weight")
+                            if isinstance(h_cm, (int, float)) and h_cm > 0 and isinstance(w_kg, (int, float)) and w_kg > 0:
+                                h_m = float(h_cm) / 100.0
+                                bmi_val = float(w_kg) / (h_m * h_m)
+                                st.session_state.user_input["bmi"] = round(bmi_val, 2)
+                                st.metric(label=display_label, value=f"{bmi_val:.2f}")
+                            else:
+                                st.info("BMI will be calculated automatically from Height and Weight once provided")
+                            continue
+                        if col in ("bmi_scaled", "bmi_corrected"):
+                            # Recompute scaled BMI(s) from latest height/weight
+                            h_cm = st.session_state.user_input.get("height")
+                            w_kg = st.session_state.user_input.get("weight")
+                            if isinstance(h_cm, (int, float)) and h_cm > 0 and isinstance(w_kg, (int, float)) and w_kg > 0:
+                                h_m = float(h_cm) / 100.0
+                                if col == "bmi_scaled":
+                                    bmi_scaled_16 = float(w_kg) / (h_m ** 1.6)
+                                    st.session_state.user_input["bmi_scaled"] = round(bmi_scaled_16, 4)
+                                    st.metric(label=display_label, value=f"{bmi_scaled_16:.4f}")
+                                else:
+                                    bmi_scaled_17 = float(w_kg) / (h_m ** 1.7)
+                                    st.session_state.user_input["bmi_corrected"] = round(bmi_scaled_17, 4)
+                                    st.metric(label=display_label, value=f"{bmi_scaled_17:.4f}")
+                            else:
+                                st.info("This will be calculated automatically from Height and Weight once provided")
+                            continue
                         if col in int_only_cols:
                             # Integer input
                             st.session_state.user_input[col] = int(st.number_input(
@@ -1449,12 +1553,21 @@ elif st.session_state.current_page == "input":
 
             # Make prediction
             prediction = model.predict(input_df)[0]
-            prediction_proba = model.predict_proba(input_df)[0][1] if hasattr(model, "predict_proba") else None
+            model_proba = model.predict_proba(input_df)[0][1] if hasattr(model, "predict_proba") else None
+
+            # Combine with rule-based vital risk to avoid misleading 0%
+            vital_risk = compute_vital_risk(user_input)
+            if model_proba is None:
+                combined_proba = vital_risk
+            else:
+                combined_proba = max(float(model_proba), vital_risk)
 
             # Store results
             st.session_state.prediction_result = {
                 "prediction": prediction,
-                "probability": prediction_proba,
+                "probability": combined_proba,           # used for UI and reports
+                "model_probability": model_proba,        # keep original for debugging/analysis
+                "vital_risk": vital_risk,                # expose vital-based heuristic
                 "user_input": user_input,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
