@@ -1583,6 +1583,40 @@ elif st.session_state.current_page == "results":
         st.info("📈 **Risk Trend Analysis**\n\nComplete more predictions to see your health trend over time!")
     
     st.divider()
+
+# ===============================
+    # Main prediction result - VERTICAL LAYOUT
+    # ===============================
+    st.subheader("📊 Prediction Results")
+    
+    # VERTICAL LAYOUT - Status, Risk Level, Quick Stats in order
+    with st.container():
+        # Status Section
+        st.markdown("### 🎯 Status")
+        status_col1, status_col2 = st.columns([1, 2])
+        
+        with status_col1:
+            if prediction == 1:
+                st.error("🟥 Diseased")
+            else:
+                st.success("🟩 Healthy")
+        
+        with status_col2:
+            if prediction == 1:
+                st.info("""
+                *Recommendation:* 
+                Please consult with a healthcare professional for further evaluation and guidance.
+                """)
+            else:
+                st.info("""
+                *Great news!* 
+                Your health indicators appear to be within normal ranges.
+                """)
+    
+    st.divider()
+    
+   
+
     
     # ===============================
     # Health Metrics Comparison Section
