@@ -1728,6 +1728,103 @@ elif st.session_state.current_page == "results":
     
     st.divider()
     
+
+      # Risk Summary Card
+    if prediction_proba is not None:
+        risk_percent = prediction_proba * 100
+        
+        # Create a comprehensive risk summary
+        st.markdown("### 📋 Detailed Analysis")
+        
+        summary_col1, summary_col2 = st.columns([2, 1])
+        
+        with summary_col1:
+            # Risk indicators
+            st.markdown("#### 🔍 Key Findings")
+            
+            # Analyze key health metrics
+            critical_findings = []
+            warning_findings = []
+            good_findings = []
+            
+            # BMI analysis
+            bmi = user_input.get("bmi")
+            if isinstance(bmi, (int, float)):
+                if bmi > 30:
+                    critical_findings.append(f"BMI: {bmi:.1f} (Obese)")
+                elif bmi > 25:
+                    warning_findings.append(f"BMI: {bmi:.1f} (Overweight)")
+                else:
+                    good_findings.append(f"BMI: {bmi:.1f} (Normal)")
+            
+            # Blood pressure analysis
+            bp = user_input.get("blood_pressure")
+            if isinstance(bp, (int, float)):
+                if bp > 140:
+                    critical_findings.append(f"Blood Pressure: {bp:.0f} mmHg (High)")
+                elif bp > 120:
+                    warning_findings.append(f"Blood Pressure: {bp:.0f} mmHg (Elevated)")
+                else:
+                    good_findings.append(f"Blood Pressure: {bp:.0f} mmHg (Normal)")
+            
+            # Display findings
+            if critical_findings:
+                st.error("#### ⚠️ Critical Areas")
+                for finding in critical_findings:
+                    st.write(f"• {finding}")
+            
+            if warning_findings:
+                st.warning("#### 📝 Areas for Improvement")
+                for finding in warning_findings:
+                    st.write(f"• {finding}")
+            
+            if good_findings and not critical_findings:
+                st.success("#### ✅ Positive Indicators")
+                for finding in good_findings:
+                    st.write(f"• {finding}")
+        
+        with summary_col2:
+        # Next steps
+            st.markdown("#### 🎯 Recommended Actions")
+
+            def styled_box(color, title, points):
+                st.markdown(
+                    f"""
+                    <div style="background-color:{color}; padding: 12px; border-radius: 8px; 
+                                width: 80%; margin-bottom: 10px;">
+                        <b>{title}</b>
+                        <ul style="margin-top: 8px;">
+                            {''.join([f"<li>{p}</li>" for p in points])}
+                        </ul>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            if risk_percent <= 30:
+                styled_box("#1b4332", "✅ Maintain Your Health:", [
+                    "Continue healthy habits",
+                    "Regular check-ups",
+                    "Balanced nutrition",
+                    "Stay active"
+                ])
+            elif risk_percent <= 70:
+                styled_box("#fca311", "📝 Take Action:", [
+                    "Consult healthcare provider",
+                    "Improve lifestyle factors",
+                    "Monitor key metrics",
+                    "Set health goals"
+                ])
+            else:
+                styled_box("#d90429", "⚠️ Immediate Attention:", [
+                    "Consult doctor promptly",
+                    "Comprehensive evaluation",
+                    "Lifestyle changes",
+                    "Regular monitoring"
+                ])
+
+    
+    st.divider()
    
 
     
