@@ -1039,7 +1039,7 @@ if st.session_state.current_page == "home":
     with stat_col3:
         st.markdown("""
         <div class="stat-card">
-            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">95%</h3>
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">85%</h3>
             <p style="color: #666; margin: 0; font-size: 1.1rem;">Accuracy Rate</p>
         </div>
         """, unsafe_allow_html=True)
@@ -1700,6 +1700,12 @@ elif st.session_state.current_page == "results":
 # ===============================
     # Main prediction result - VERTICAL LAYOUT
     # ===============================
+
+# Derive prediction from probability
+    if prediction_proba is not None:
+        prediction = 1 if prediction_proba >= 0.5 else 0
+
+
     st.subheader("📊 Prediction Results")
     
     # VERTICAL LAYOUT - Status, Risk Level, Quick Stats in order
@@ -1727,6 +1733,7 @@ elif st.session_state.current_page == "results":
                 """)
     
     st.divider()
+    
     
 
       # Risk Summary Card
