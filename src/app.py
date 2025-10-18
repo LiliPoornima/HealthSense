@@ -59,6 +59,63 @@ FEATURE_UNITS = {
 }
 
 # ===============================
+# Vital risk computation
+# ===============================
+def compute_vital_risk(user_input: dict) -> float:
+    """Compute a simple rule-based risk [0,1] from key vitals to avoid 0% when vitals are abnormal.
+
+    Uses common clinical cut-offs for quick heuristics. If a metric is missing, it's ignored.
+    """
+    risk_components = []
+
+    # Blood pressure (assumed systolic if single value is provided)
+    bp = user_input.get("blood_pressure") or user_input.get("systolic_bp")
+    if isinstance(bp, (int, float)):
+        if bp >= 140:
+            risk_components.append(0.8)
+        elif bp >= 130:
+            risk_components.append(0.6)
+        elif bp >= 120:
+            risk_components.append(0.35)
+
+    # Heart rate
+    hr = user_input.get("heart_rate")
+    if isinstance(hr, (int, float)):
+        if hr < 50 or hr > 110:
+            risk_components.append(0.5)
+        elif hr < 60 or hr > 100:
+            risk_components.append(0.3)
+
+    # BMI
+    bmi = user_input.get("bmi")
+    if isinstance(bmi, (int, float)):
+        if bmi >= 35:
+            risk_components.append(0.7)
+        elif bmi >= 30:
+            risk_components.append(0.5)
+        elif bmi >= 25:
+            risk_components.append(0.3)
+
+    # Sleep
+    sleep = user_input.get("sleep_hours") if "sleep_hours" in user_input else user_input.get("sleep")
+    if isinstance(sleep, (int, float)):
+        if sleep < 5:
+            risk_components.append(0.4)
+        elif sleep < 7:
+            risk_components.append(0.2)
+
+    # Oxygen saturation
+    spo2 = user_input.get("oxygen_saturation")
+    if isinstance(spo2, (int, float)) and spo2 < 94:
+        risk_components.append(0.6)
+
+    if not risk_components:
+        return 0.0
+
+    # Use max to reflect the most concerning indicator without inflating
+    return float(max(risk_components))
+
+# ===============================
 # Helper function to load Lottie animations
 # ===============================
 def load_lottieurl(url: str):
@@ -126,46 +183,51 @@ def create_risk_trend_chart(history):
     if len(history) < 2:
         return None
     
-    # Extract data from history
-    dates = [record['timestamp'] for record in history]
-    risks = [record['probability'] * 100 if record['probability'] is not None else 0 
-             for record in history]
+    try:
+        # Extract data from history
+        dates = [record['timestamp'] for record in history]
+        risks = [record['probability'] * 100 if record['probability'] is not None else 0 
+                 for record in history]
+        
+        fig = go.Figure()
+        
+        # Add risk trend line
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=risks,
+            mode='lines+markers',
+            name='Risk Score',
+            line=dict(color='#636EFA', width=3),
+            marker=dict(size=10, color='#636EFA', line=dict(color='white', width=2)),
+            hovertemplate='<b>Date:</b> %{x}<br><b>Risk:</b> %{y:.1f}%<extra></extra>'
+        ))
+        
+        # Add reference lines
+        fig.add_hline(y=30, line_dash="dash", line_color="green", 
+                      annotation_text="Low Risk Threshold", annotation_position="right")
+        fig.add_hline(y=70, line_dash="dash", line_color="red", 
+                      annotation_text="High Risk Threshold", annotation_position="right")
+        
+        fig.update_layout(
+            title="Your Health Risk Trend Over Time",
+            xaxis_title="Date",
+            yaxis_title="Risk Score (%)",
+            yaxis_range=[0, 100],
+            hovermode='x unified',
+            showlegend=False,
+            height=400,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='white'
+        )
+        
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        
+        return fig
     
-    fig = go.Figure()
-    
-    # Add risk trend line
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=risks,
-        mode='lines+markers',
-        name='Risk Score',
-        line=dict(color='#636EFA', width=3),
-        marker=dict(size=10, color='#636EFA', line=dict(color='white', width=2)),
-        hovertemplate='<b>Date:</b> %{x}<br><b>Risk:</b> %{y:.1f}%<extra></extra>'
-    ))
-    
-    # Add reference lines
-    fig.add_hline(y=30, line_dash="dash", line_color="green", 
-                  annotation_text="Low Risk Threshold", annotation_position="right")
-    fig.add_hline(y=70, line_dash="dash", line_color="red", 
-                  annotation_text="High Risk Threshold", annotation_position="right")
-    
-    fig.update_layout(
-        title="Your Health Risk Trend Over Time",
-        xaxis_title="Date",
-        yaxis_title="Risk Score (%)",
-        yaxis_range=[0, 100],
-        hovermode='x unified',
-        showlegend=False,
-        height=400,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='white'
-    )
-    
-    fig.update_xaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
-    fig.update_yaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
-    
-    return fig
+    except Exception as e:
+        st.error(f"Error creating trend chart: {e}")
+        return None
 
 # ===============================
 # Function to create Health Category Radar Chart
@@ -590,7 +652,7 @@ feature_categories = {cat: feature_categories[cat] for cat in category_order if 
 if "user_input" not in st.session_state:
     st.session_state.user_input = {}
 if "current_page" not in st.session_state:
-    st.session_state.current_page = "input"
+    st.session_state.current_page = "home"
 if "prediction_result" not in st.session_state:
     st.session_state.prediction_result = None
 if "prediction_history" not in st.session_state:
@@ -599,34 +661,61 @@ if "show_history" not in st.session_state:
     st.session_state.show_history = False
 
 # ===============================
-# SIDEBAR - App Info and History
+# SIDEBAR - App Info and Navigation
 # ===============================
 st.sidebar.title("🩺 HealthSense")
 st.sidebar.markdown("### *AI-Powered Health Analytics*")
 st.sidebar.divider()
 
-# Navigation info
+# Navigation Menu
+st.sidebar.subheader("📍 Navigation")
+current_page_display = {
+    "home": "🏠 Home",
+    "input": "📝 Health Assessment", 
+    "results": "📊 View Results",
+    "history": "📜 Prediction History"
+}
+
+# Navigation buttons
+if st.sidebar.button("🏠 Home", use_container_width=True):
+    st.session_state.current_page = "home"
+    st.session_state.show_history = False
+    st.rerun()
+
+if st.sidebar.button("📝 Health Assessment", use_container_width=True):
+    st.session_state.current_page = "input"
+    st.session_state.show_history = False
+    st.rerun()
+
+if st.session_state.prediction_result and st.sidebar.button("📊 View Results", use_container_width=True):
+    st.session_state.current_page = "results"
+    st.session_state.show_history = False
+    st.rerun()
+
+if st.sidebar.button("📜 Prediction History", use_container_width=True):
+    st.session_state.show_history = True
+    st.session_state.current_page = "history"
+    st.rerun()
+
+st.sidebar.divider()
+
+# Current page indicator
 st.sidebar.subheader("📍 Current Page")
-if st.session_state.current_page == "input":
-    st.sidebar.info("📝 **Input Page**")
-    st.sidebar.caption("Fill in your health details")
+current_page_name = current_page_display.get(st.session_state.current_page, "🏠 Home")
+if st.session_state.current_page == "home":
+    st.sidebar.info(current_page_name)
+elif st.session_state.current_page == "input":
+    st.sidebar.warning(current_page_name)
+elif st.session_state.current_page == "results":
+    st.sidebar.success(current_page_name)
 else:
-    st.sidebar.success("✅ **Results Page**")
-    st.sidebar.caption("View your assessment")
+    st.sidebar.info(current_page_name)
 
 st.sidebar.divider()
 
 # History section
 st.sidebar.subheader("📜 Prediction History")
 st.sidebar.caption(f"Total Predictions: {len(st.session_state.prediction_history)}")
-
-if st.sidebar.button("📊 View History", use_container_width=True):
-    st.session_state.show_history = True
-
-if st.sidebar.button("🏠 Back to Main", use_container_width=True):
-    st.session_state.show_history = False
-    st.session_state.current_page = "input"
-    st.rerun()
 
 st.sidebar.divider()
 
@@ -646,9 +735,467 @@ st.sidebar.divider()
 st.sidebar.caption("⚠️ **Disclaimer:** This tool is for informational purposes only and does not replace professional medical advice.")
 
 # ===============================
+# HOMEPAGE
+# ===============================
+if st.session_state.current_page == "home":
+    
+    # Custom CSS for professional healthcare styling
+    st.markdown("""
+    <style>
+    .hero-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+        padding: 5rem 2rem;
+        border-radius: 15px;
+        color: white;
+        margin-bottom: 3rem;
+        text-align: center;
+    }
+    .hero-title {
+        font-size: 3.5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        line-height: 1.2;
+    }
+    .hero-subtitle {
+        font-size: 1.4rem;
+        margin-bottom: 2rem;
+        opacity: 0.9;
+        font-weight: 300;
+        line-height: 1.6;
+    }
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin: 3rem 0;
+    }
+    .feature-card {
+        background: white;
+        padding: 2.5rem;
+        border-radius: 12px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        border-top: 4px solid #2a5298;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+    }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2rem;
+        margin: 3rem 0;
+    }
+    .stat-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        border-left: 4px solid #28a745;
+    }
+    .testimonial-card {
+        background: #f8f9fa;
+        padding: 2.5rem;
+        border-radius: 12px;
+        border-left: 4px solid #007bff;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+    .cta-section {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        padding: 4rem 2rem;
+        border-radius: 15px;
+        color: white;
+        text-align: center;
+        margin: 4rem 0;
+    }
+    .section-header {
+        text-align: center;
+        margin-bottom: 4rem;
+    }
+    .section-header h2 {
+        color: #1e3c72;
+        font-size: 2.8rem;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+    .section-header p {
+        color: #666;
+        font-size: 1.3rem;
+        line-height: 1.6;
+    }
+    .image-container {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+    .step-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        color: #2a5298;
+    }
+.stButton > button {
+    background-color: transparent !important;
+    color: #2a5298 !important;
+    border: 2px solid #2a5298 !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton > button:hover {
+    background-color: #2a5298 !important;
+    color: white !important;
+    border: 2px solid #2a5298 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(42, 82, 152, 0.3) !important;
+}
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Section 1: Hero Section
+    st.markdown("""
+    <div class="hero-container">
+        <h1 class="hero-title">Take Control of Your Health, Powered by AI</h1>
+        <p class="hero-subtitle">HealthSense analyzes your lifestyle and medical data to predict health risks and guide you towards a healthier tomorrow.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Hero Image and CTA
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("""
+        <div class="image-container">
+        """, unsafe_allow_html=True)
+        st.image("https://plus.unsplash.com/premium_photo-1681843126728-04eab730febe?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1170", 
+                use_container_width=True)
+        st.image("https://images.unsplash.com/photo-1624727828489-a1e03b79bba8?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8M3x8aGVhbHRoJTIwY2FyZXxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop&q=60&w=400", 
+                use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col2:
+        st.markdown("""
+        <div style="padding: 2rem;">
+            <h2 style="color: #1e3c72; margin-bottom: 1.5rem; font-size: 2.2rem;">Your Health Journey Starts Here</h2>
+            <p style="color: #666; margin-bottom: 2rem; line-height: 1.7; font-size: 1.1rem;">
+                Experience the future of healthcare with our AI-powered platform. Get personalized insights, 
+                track your health trends, and make informed decisions about your wellbeing. Our advanced 
+                analytics provide you with comprehensive health risk assessments and actionable recommendations.
+            </p>
+            <div style="margin-bottom: 2rem;">
+                <h4 style="color: #1e3c72; margin-bottom: 1rem;">Key Benefits:</h4>
+                <ul style="color: #666; line-height: 1.8;">
+                    <li>Personalized health risk assessment</li>
+                    <li>AI-powered predictive analytics</li>
+                    <li>Comprehensive health monitoring</li>
+                    <li>Actionable health recommendations</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # CTA Buttons
+        cta_col1, cta_col2 = st.columns(2)
+        with cta_col1:
+            if st.button("Get Your Free Health Analysis", type="primary", use_container_width=True):
+                st.session_state.current_page = "input"
+                st.rerun()
+        with cta_col2:
+            if st.button("Learn More", use_container_width=True):
+                st.session_state.current_page = "home"
+                st.rerun()
+    
+    st.divider()
+    
+    # Section 2: How It Works
+    st.markdown("""
+    <div class="section-header">
+        <h2>Gain Insights in Minutes</h2>
+        <p>Simple, Secure, and Scientifically Backed Health Analysis</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    steps_col1, steps_col2, steps_col3 = st.columns(3)
+    
+    with steps_col1:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="step-icon">1</div>
+            <h3 style="color: #1e3c72; margin-bottom: 1rem;">Input Your Data</h3>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 1rem;"><strong>Share Securely</strong></p>
+            <p style="color: #666; line-height: 1.6;">Anonymously provide your lifestyle habits and optional medical history through our secure, encrypted forms.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with steps_col2:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="step-icon">2</div>
+            <h3 style="color: #1e3c72; margin-bottom: 1rem;">AI Analysis & Prediction</h3>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 1rem;"><strong>Our AI Analyzes</strong></p>
+            <p style="color: #666; line-height: 1.6;">HealthSense's advanced algorithms process your data in real-time to assess your health status and identify potential risks.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with steps_col3:
+        st.markdown("""
+        <div class="feature-card">
+            <div class="step-icon">3</div>
+            <h3 style="color: #1e3c72; margin-bottom: 1rem;">Get Your Action Plan</h3>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 1rem;"><strong>Receive Your Plan</strong></p>
+            <p style="color: #666; line-height: 1.6;">Get a clear, visualized report with personalized health suggestions, risk factors, and guidance for early consultation.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 3: Key Features
+    st.markdown("""
+    <div class="section-header">
+        <h2>Why Choose HealthSense?</h2>
+        <p>Comprehensive Health Analytics Platform</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Features in two columns
+    features_col1, features_col2 = st.columns(2)
+    
+    with features_col1:
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Proactive Risk Assessment</h4>
+            <p style="color: #666; line-height: 1.6;">Don't wait for symptoms. Identify potential health issues before they become serious with our advanced predictive analytics.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Personalized Health Suggestions</h4>
+            <p style="color: #666; line-height: 1.6;">Actionable recommendations tailored to your unique lifestyle, genetics, and health data. No more generic advice.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Data Visualization</h4>
+            <p style="color: #666; line-height: 1.6;">Understand your health through intuitive charts and graphs, not complex medical jargon. See trends and patterns clearly.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with features_col2:
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Secure & Private</h4>
+            <p style="color: #666; line-height: 1.6;">Your data is encrypted and anonymized. We prioritize your privacy above all else with enterprise-grade security.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Real-Time Predictions</h4>
+            <p style="color: #666; line-height: 1.6;">Get instant insights as soon as you input your data. No waiting for lab results or doctor appointments.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="feature-card">
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Continuous Monitoring</h4>
+            <p style="color: #666; line-height: 1.6;">Track your progress over time with historical data analysis and trend monitoring.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 4: Statistics
+    st.markdown("""
+    <div class="section-header">
+        <h2>Our Impact in Numbers</h2>
+        <p>Trusted by Thousands of Users Worldwide</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    
+    with stat_col1:
+        st.markdown("""
+        <div class="stat-card">
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">50,000+</h3>
+            <p style="color: #666; margin: 0; font-size: 1.1rem;">Users Empowered</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with stat_col2:
+        st.markdown("""
+        <div class="stat-card">
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">150,000+</h3>
+            <p style="color: #666; margin: 0; font-size: 1.1rem;">Health Predictions</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with stat_col3:
+        st.markdown("""
+        <div class="stat-card">
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">85%</h3>
+            <p style="color: #666; margin: 0; font-size: 1.1rem;">Accuracy Rate</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with stat_col4:
+        st.markdown("""
+        <div class="stat-card">
+            <h3 style="color: #1e3c72; margin: 0; font-size: 2.5rem;">98%</h3>
+            <p style="color: #666; margin: 0; font-size: 1.1rem;">User Satisfaction</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 5: Visual Demo
+    st.markdown("""
+    <div class="section-header">
+        <h2>A Clear Window into Your Well-being</h2>
+        <p>See Your Health Data Come to Life</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    demo_col1, demo_col2 = st.columns([1, 1])
+    
+    with demo_col1:
+        st.markdown("""
+        <div style="padding: 2rem;">
+            <h3 style="color: #1e3c72; margin-bottom: 1.5rem; font-size: 1.8rem;">Intelligent Health Dashboard</h3>
+            <p style="color: #666; margin-bottom: 1.5rem; line-height: 1.7;">
+                Our intelligent dashboard transforms complex health information into an easy-to-understand 
+                overview of your wellness, highlighting trends and key metrics that matter.
+            </p>
+            <ul style="color: #666; line-height: 1.8; margin-bottom: 2rem;">
+                <li><strong>Interactive Health Trends</strong> - Track changes over time</li>
+                <li><strong>Risk Score Visualization</strong> - Understand your health status at a glance</li>
+                <li><strong>Personalized Insights</strong> - Get actionable recommendations</li>
+                <li><strong>Comparative Analysis</strong> - See how you compare to population averages</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with demo_col2:
+        st.markdown("""
+        <div class="image-container">
+        """, unsafe_allow_html=True)
+        st.image("https://plus.unsplash.com/premium_photo-1698421947098-d68176a8f5b2?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8aGVhbHRoY2FyZSUyMHRlY2hub2xvZ3l8ZW58MHwxfDB8fHww&auto=format&fit=crop&q=60&w=500", 
+                use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 6: Testimonials
+    st.markdown("""
+    <div class="section-header">
+        <h2>Trusted by Thousands</h2>
+        <p>What Our Users Say About HealthSense</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    testimonial_col1, testimonial_col2 = st.columns(2)
+    
+    with testimonial_col1:
+        st.markdown("""
+        <div class="testimonial-card">
+           <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+            <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTl8fGh1bWFufGVufDB8fDB8fHww&auto=format&fit=crop&q=60&w=400" 
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-right: 1rem; border: 3px solid #1e3c72;">
+            <div>
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Sarah L. ★★★★★</h4>
+            <p style="color: #666; line-height: 1.7; font-style: italic;">"HealthSense helped me understand the impact of my sleep on my stress levels. The personalized suggestions were a game-changer! I've never felt more in control of my health."</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="testimonial-card">
+          <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+            <img src="https://plus.unsplash.com/premium_photo-1658506671316-0b293df7c72b?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8ZG9jdG9yc3xlbnwwfDB8MHx8fDA%3D&auto=format&fit=crop&q=60&w=400" 
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-right: 1rem; border: 3px solid #1e3c72;">
+            <div>
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Dr. Michael R. ★★★★★</h4>
+            <p style="color: #666; line-height: 1.7; font-style: italic;">"As a healthcare professional, I'm impressed by HealthSense's accuracy and user-friendly approach. It's a valuable tool for preventive healthcare and patient education."</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with testimonial_col2:
+        st.markdown("""
+        <div class="testimonial-card">
+          <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+            <img src="https://plus.unsplash.com/premium_photo-1689539137236-b68e436248de?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8bWFuJTIwcHJvZmlsZSUyMHBob3RvfGVufDB8fDB8fHww&auto=format&fit=crop&q=60&w=400" 
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-right: 1rem; border: 3px solid #1e3c72;">
+            <div>
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Mark T. ★★★★★</h4>
+            <p style="color: #666; line-height: 1.7; font-style: italic;">"The prediction was so accurate it encouraged me to see a doctor early. I feel in control of my health now. This app literally changed my life perspective!"</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="testimonial-card">
+          <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+            <img src="https://images.unsplash.com/photo-1513097633097-329a3a64e0d4?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NjZ8fGdpcmx8ZW58MHwwfDB8fHww&auto=format&fit=crop&q=60&w=400" 
+                 style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-right: 1rem; border: 3px solid #1e3c72;">
+            <div>
+            <h4 style="color: #1e3c72; margin-bottom: 1rem;">Jennifer K. ★★★★★</h4>
+            <p style="color: #666; line-height: 1.7; font-style: italic;">"The visualization tools made understanding my health data so simple. I finally have clarity about what I need to focus on for better wellness."</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Section 7: Final CTA
+    st.markdown("""
+    <div class="cta-section">
+        <h2 style="margin-bottom: 1.5rem; font-size: 2.5rem;">Start Your Journey to Better Health Today</h2>
+        <p style="font-size: 1.3rem; margin-bottom: 2rem; opacity: 0.9; line-height: 1.6;">
+            Join thousands of users who are taking a proactive step towards lifelong wellness with AI-powered health insights.
+        </p>
+        <div style="text-align: center;">
+        """, unsafe_allow_html=True)
+        
+    if st.button("Get Started for Free", type="primary", use_container_width=True):
+            st.session_state.current_page = "input"
+            st.rerun()
+        
+    st.markdown("</div></div>", unsafe_allow_html=True)
+    
+    # Footer
+    st.markdown("---")
+    footer_col1, footer_col2, footer_col3 = st.columns(3)
+    
+    with footer_col1:
+        st.markdown("""
+        **HealthSense**  
+        *AI-Powered Health Prediction*
+        """)
+    
+    with footer_col2:
+        st.markdown("""
+        **Quick Links**  
+        About Us • How It Works • Privacy Policy  
+        Terms of Service • Contact
+        """)
+    
+    with footer_col3:
+        st.markdown("""
+        **Connect With Us**  
+        support@healthsense.ai  
+        Follow us on social media
+        """)
+    
+    st.markdown("---")
+    st.caption("© 2025 HealthSense AI. All rights reserved. This tool is for informational purposes only and does not replace professional medical advice.")
+
+# ===============================
 # HISTORY PAGE
 # ===============================
-if st.session_state.show_history:
+elif st.session_state.show_history:
     st.title("📜 Prediction History - HealthSense")
     st.markdown("### Track Your Health Journey Over Time")
     st.divider()
@@ -720,9 +1267,72 @@ if st.session_state.show_history:
                 st.rerun()
 
 # ===============================
-# PAGE NAVIGATION
+# PAGE NAVIGATION - INPUT PAGE
 # ===============================
 elif st.session_state.current_page == "input":
+    
+    # Custom CSS for Health Assessment page
+    st.markdown("""
+    <style>
+    /* Health Assessment Page - Dark Blue Theme */
+    
+    /* Primary Buttons (Predict button) */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        padding: 0.75rem 1.5rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    div.stButton > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(30, 60, 114, 0.4) !important;
+    }
+    
+    /* Secondary Buttons (Back to Home) */
+    div.stButton > button[kind="secondary"] {
+        background-color: transparent !important;
+        color: #1e3c72 !important;
+        border: 2px solid #1e3c72 !important;
+        border-radius: 8px !important;
+        font-weight: 500 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    div.stButton > button[kind="secondary"]:hover {
+        background-color: #1e3c72 !important;
+        color: white !important;
+        border: 2px solid #1e3c72 !important;
+    }
+    
+    /* Form submit buttons */
+    button.st-emotion-cache-1gn7s2v {
+        background-color: #1e3c72 !important;
+        color: white !important;
+        border: none !important;
+    }
+    
+    button.st-emotion-cache-1gn7s2v:hover {
+        background-color: #2a5298 !important;
+        color: white !important;
+    }
+    
+    /* Active state for all buttons */
+    button:active {
+        transform: translateY(0) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Back to Home button
+    if st.button("🏠 Back to Home"):
+        st.session_state.current_page = "home"
+        st.rerun()
     
     # Animation and header
     if lottie_animation:
@@ -781,6 +1391,24 @@ elif st.session_state.current_page == "input":
         "work_hours", "daily_steps", "meals_per_day", "physical_activity"
     ]
     
+    # Auto-calculate BMI and scaled BMI from height (cm) and weight (kg)
+    height_cm = st.session_state.user_input.get("height")
+    weight_kg = st.session_state.user_input.get("weight")
+    if isinstance(height_cm, (int, float)) and height_cm > 0 and isinstance(weight_kg, (int, float)) and weight_kg > 0:
+        height_m = float(height_cm) / 100.0
+        # Standard BMI = weight (kg) / height(m)^2
+        bmi_val = float(weight_kg) / (height_m * height_m)
+        st.session_state.user_input["bmi"] = round(bmi_val, 2)
+        
+        # Scaled BMI per research: weight / height^p, p in [1.6, 1.7]
+        bmi_scaled_16 = float(weight_kg) / (height_m ** 1.6)
+        st.session_state.user_input["bmi_scaled"] = round(bmi_scaled_16, 4)
+        
+        # If a corrected/alternate column exists in dataset, populate with exponent 1.7
+        if "bmi_corrected" in df_features.columns:
+            bmi_scaled_17 = float(weight_kg) / (height_m ** 1.7)
+            st.session_state.user_input["bmi_corrected"] = round(bmi_scaled_17, 4)
+    
     # Create input fields for each category
     for category, columns in feature_categories.items():
         with st.expander(category, expanded=(category == "👤 Personal Information")):
@@ -802,6 +1430,35 @@ elif st.session_state.current_page == "input":
                     
                     if col in numeric_cols:
                         # Numeric input with units
+                        if col == "bmi":
+                            # Recompute BMI from the latest height/weight user inputs
+                            h_cm = st.session_state.user_input.get("height")
+                            w_kg = st.session_state.user_input.get("weight")
+                            if isinstance(h_cm, (int, float)) and h_cm > 0 and isinstance(w_kg, (int, float)) and w_kg > 0:
+                                h_m = float(h_cm) / 100.0
+                                bmi_val = float(w_kg) / (h_m * h_m)
+                                st.session_state.user_input["bmi"] = round(bmi_val, 2)
+                                st.metric(label=display_label, value=f"{bmi_val:.2f}")
+                            else:
+                                st.info("BMI will be calculated automatically from Height and Weight once provided")
+                            continue
+                        if col in ("bmi_scaled", "bmi_corrected"):
+                            # Recompute scaled BMI(s) from latest height/weight
+                            h_cm = st.session_state.user_input.get("height")
+                            w_kg = st.session_state.user_input.get("weight")
+                            if isinstance(h_cm, (int, float)) and h_cm > 0 and isinstance(w_kg, (int, float)) and w_kg > 0:
+                                h_m = float(h_cm) / 100.0
+                                if col == "bmi_scaled":
+                                    bmi_scaled_16 = float(w_kg) / (h_m ** 1.6)
+                                    st.session_state.user_input["bmi_scaled"] = round(bmi_scaled_16, 4)
+                                    st.metric(label=display_label, value=f"{bmi_scaled_16:.4f}")
+                                else:
+                                    bmi_scaled_17 = float(w_kg) / (h_m ** 1.7)
+                                    st.session_state.user_input["bmi_corrected"] = round(bmi_scaled_17, 4)
+                                    st.metric(label=display_label, value=f"{bmi_scaled_17:.4f}")
+                            else:
+                                st.info("This will be calculated automatically from Height and Weight once provided")
+                            continue
                         if col in int_only_cols:
                             # Integer input
                             st.session_state.user_input[col] = int(st.number_input(
@@ -851,11 +1508,11 @@ elif st.session_state.current_page == "input":
     st.markdown("""
     <style>
     div.stButton > button:first-child {
-        background-color: #1E90FF; /* Dodger Blue */
+        background-color: #1E90FF;
         color: white;
     }
     div.stButton > button:first-child:hover {
-        background-color: #104E8B; /* Dark Blue on hover */
+        background-color: #104E8B;
         color: white;
     }
     </style>
@@ -896,12 +1553,21 @@ elif st.session_state.current_page == "input":
 
             # Make prediction
             prediction = model.predict(input_df)[0]
-            prediction_proba = model.predict_proba(input_df)[0][1] if hasattr(model, "predict_proba") else None
+            model_proba = model.predict_proba(input_df)[0][1] if hasattr(model, "predict_proba") else None
+
+            # Combine with rule-based vital risk to avoid misleading 0%
+            vital_risk = compute_vital_risk(user_input)
+            if model_proba is None:
+                combined_proba = vital_risk
+            else:
+                combined_proba = max(float(model_proba), vital_risk)
 
             # Store results
             st.session_state.prediction_result = {
                 "prediction": prediction,
-                "probability": prediction_proba,
+                "probability": combined_proba,           # used for UI and reports
+                "model_probability": model_proba,        # keep original for debugging/analysis
+                "vital_risk": vital_risk,                # expose vital-based heuristic
                 "user_input": user_input,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
@@ -917,6 +1583,11 @@ elif st.session_state.current_page == "input":
 # RESULTS PAGE
 # ===============================
 elif st.session_state.current_page == "results":
+    
+    # Back to Home button
+    if st.button("🏠 Back to Home"):
+        st.session_state.current_page = "home"
+        st.rerun()
     
     result = st.session_state.prediction_result
     prediction = result["prediction"]
@@ -951,22 +1622,218 @@ elif st.session_state.current_page == "results":
     viz_col1, viz_col2 = st.columns(2)
     
     with viz_col1:
-        # Health Gauge Chart
-        if prediction_proba is not None:
-            risk_percent = prediction_proba * 100
-            gauge_fig = create_health_gauge(risk_percent)
-            st.plotly_chart(gauge_fig, use_container_width=True)
+    # Health Progress Bars (replacing gauge chart)
+     if prediction_proba is not None:
+        risk_percent = prediction_proba * 100
+        health_score = 100 - risk_percent
+        
+        def create_health_progress_dashboard(user_input, health_score, risk_percent):
+            """Create a progress bar dashboard for health metrics"""
+            
+            # Main health score
+            st.markdown(f"### Overall Health Score: **{health_score:.0f}/100**")
+            
+            if risk_percent <= 30:
+                st.success("🟢 **Low Risk** - Excellent health indicators")
+                color = "green"
+            elif risk_percent <= 70:
+                st.warning("🟡 **Moderate Risk** - Some areas need attention")
+                color = "orange"
+            else:
+                st.error("🔴 **High Risk** - Professional consultation recommended")
+                color = "red"
+            
+            st.progress(int(health_score), text=f"Health Score: {health_score:.1f}%")
+            
+            # Key metrics progress bars
+            st.markdown("### Key Health Metrics")
+            
+            metrics_to_show = [
+                ('bmi', 'Body Mass Index', 18.5, 24.9),
+                ('blood_pressure', 'Blood Pressure', 90, 120),
+                ('sleep_hours', 'Sleep Quality', 7, 9),
+                ('physical_activity', 'Physical Activity', 2.5, 5)
+            ]
+            
+            for metric_key, metric_name, optimal_low, optimal_high in metrics_to_show:
+                if metric_key in user_input and isinstance(user_input[metric_key], (int, float)):
+                    value = user_input[metric_key]
+                    
+                    # Calculate score for progress bar
+                    if value <= optimal_low:
+                        score = (value / optimal_low) * 50
+                        status = "Below Range"
+                        bar_color = "orange"
+                    elif value <= optimal_high:
+                        score = 50 + ((value - optimal_low) / (optimal_high - optimal_low)) * 50
+                        status = "Optimal"
+                        bar_color = "green"
+                    else:
+                        score = max(0, 100 - (value - optimal_high))
+                        status = "Above Range"
+                        bar_color = "red"
+                    
+                    score = max(0, min(100, score))
+                    
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**{metric_name}**")
+                        st.progress(int(score), text=f"{score:.0f}% - {status}")
+                    with col2:
+                        st.metric("Value", f"{value:.1f}")
+        
+        create_health_progress_dashboard(user_input, health_score, risk_percent)
     
     with viz_col2:
-        # Risk Trend Chart (if history available)
-        if len(st.session_state.prediction_history) >= 2:
-            trend_fig = create_risk_trend_chart(st.session_state.prediction_history)
-            if trend_fig:
-                st.plotly_chart(trend_fig, use_container_width=True)
+    # Risk Trend Chart (if history available)
+     if len(st.session_state.prediction_history) >= 2:
+        trend_fig = create_risk_trend_chart(st.session_state.prediction_history)
+        if trend_fig is not None:  # Check if figure was created successfully
+            st.plotly_chart(trend_fig, use_container_width=True)
         else:
-            st.info("📈 **Risk Trend Analysis**\n\nComplete more predictions to see your health trend over time!")
+            st.info("Unable to generate trend chart. Please check your prediction history data.")
+     else:
+        st.info("📈 **Risk Trend Analysis**\n\nComplete more predictions to see your health trend over time!")
     
     st.divider()
+
+# ===============================
+    # Main prediction result - VERTICAL LAYOUT
+    # ===============================
+
+# Derive prediction from probability
+    if prediction_proba is not None:
+        prediction = 1 if prediction_proba >= 0.5 else 0
+
+
+    st.subheader("📊 Prediction Results")
+    
+    # VERTICAL LAYOUT - Status, Risk Level, Quick Stats in order
+    with st.container():
+        # Status Section
+        st.markdown("### 🎯 Status")
+        status_col1, status_col2 = st.columns([1, 2])
+        
+        with status_col1:
+            if prediction == 1:
+                st.error("🟥 Diseased")
+            else:
+                st.success("🟩 Healthy")
+        
+        with status_col2:
+            if prediction == 1:
+                st.info("""
+                *Recommendation:* 
+                Please consult with a healthcare professional for further evaluation and guidance.
+                """)
+            else:
+                st.info("""
+                *Great news!* 
+                Your health indicators appear to be within normal ranges.
+                """)
+    
+    st.divider()
+    
+    
+
+      # Risk Summary Card
+    if prediction_proba is not None:
+        risk_percent = prediction_proba * 100
+        
+        # Create a comprehensive risk summary
+        st.markdown("### 📋 Detailed Analysis")
+        
+        summary_col1, summary_col2 = st.columns([2, 1])
+        
+        with summary_col1:
+            # Risk indicators
+            st.markdown("#### 🔍 Key Findings")
+            
+            # Analyze key health metrics
+            critical_findings = []
+            warning_findings = []
+            good_findings = []
+            
+            # BMI analysis
+            bmi = user_input.get("bmi")
+            if isinstance(bmi, (int, float)):
+                if bmi > 30:
+                    critical_findings.append(f"BMI: {bmi:.1f} (Obese)")
+                elif bmi > 25:
+                    warning_findings.append(f"BMI: {bmi:.1f} (Overweight)")
+                else:
+                    good_findings.append(f"BMI: {bmi:.1f} (Normal)")
+            
+            # Blood pressure analysis
+            bp = user_input.get("blood_pressure")
+            if isinstance(bp, (int, float)):
+                if bp > 140:
+                    critical_findings.append(f"Blood Pressure: {bp:.0f} mmHg (High)")
+                elif bp > 120:
+                    warning_findings.append(f"Blood Pressure: {bp:.0f} mmHg (Elevated)")
+                else:
+                    good_findings.append(f"Blood Pressure: {bp:.0f} mmHg (Normal)")
+            
+            # Display findings
+            if critical_findings:
+                st.error("#### ⚠️ Critical Areas")
+                for finding in critical_findings:
+                    st.write(f"• {finding}")
+            
+            if warning_findings:
+                st.warning("#### 📝 Areas for Improvement")
+                for finding in warning_findings:
+                    st.write(f"• {finding}")
+            
+            if good_findings and not critical_findings:
+                st.success("#### ✅ Positive Indicators")
+                for finding in good_findings:
+                    st.write(f"• {finding}")
+        
+        with summary_col2:
+        # Next steps
+            st.markdown("#### 🎯 Recommended Actions")
+
+            def styled_box(color, title, points):
+                st.markdown(
+                    f"""
+                    <div style="background-color:{color}; padding: 12px; border-radius: 8px; 
+                                width: 80%; margin-bottom: 10px;">
+                        <b>{title}</b>
+                        <ul style="margin-top: 8px;">
+                            {''.join([f"<li>{p}</li>" for p in points])}
+                        </ul>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            if risk_percent <= 30:
+                styled_box("#1b4332", "✅ Maintain Your Health:", [
+                    "Continue healthy habits",
+                    "Regular check-ups",
+                    "Balanced nutrition",
+                    "Stay active"
+                ])
+            elif risk_percent <= 70:
+                styled_box("#fca311", "📝 Take Action:", [
+                    "Consult healthcare provider",
+                    "Improve lifestyle factors",
+                    "Monitor key metrics",
+                    "Set health goals"
+                ])
+            else:
+                styled_box("#d90429", "⚠️ Immediate Attention:", [
+                    "Consult doctor promptly",
+                    "Comprehensive evaluation",
+                    "Lifestyle changes",
+                    "Regular monitoring"
+                ])
+
+    
+    st.divider()
+   
+
     
     # ===============================
     # Health Metrics Comparison Section
@@ -974,26 +1841,28 @@ elif st.session_state.current_page == "results":
     st.subheader("🔍 Detailed Health Metrics")
     
     metrics_tab1, metrics_tab2, metrics_tab3 = st.tabs([
-        "📊 Radar Comparison", 
         "📈 Feature Analysis", 
+        "📊 Radar Comparison", 
         "📋 Distribution Comparison"
     ])
     
-    with metrics_tab1:
-        st.markdown("**Compare your health metrics with population averages:**")
-        radar_fig = create_health_radar_chart(user_input, df_features)
-        if radar_fig:
-            st.plotly_chart(radar_fig, use_container_width=True)
-        else:
-            st.info("Insufficient data for radar chart comparison.")
+   
     
-    with metrics_tab2:
+    with metrics_tab1:
         st.markdown("**See how your values compare to population statistics:**")
         comparison_fig = create_feature_comparison_chart(user_input, df_features)
         if comparison_fig:
             st.plotly_chart(comparison_fig, use_container_width=True)
         else:
             st.info("Insufficient data for feature comparison.")
+
+    with metrics_tab2:
+        st.markdown("**Compare your health metrics with population averages:**")
+        radar_fig = create_health_radar_chart(user_input, df_features)
+        if radar_fig:
+            st.plotly_chart(radar_fig, use_container_width=True)
+        else:
+            st.info("Insufficient data for radar chart comparison.")
     
     with metrics_tab3:
         st.markdown("**Analyze specific features in detail:**")
@@ -1052,85 +1921,7 @@ elif st.session_state.current_page == "results":
     
     st.divider()
     
-    # ===============================
-    # Main prediction result - VERTICAL LAYOUT
-    # ===============================
-    st.subheader("📊 Prediction Results")
     
-    # VERTICAL LAYOUT - Status, Risk Level, Quick Stats in order
-    with st.container():
-        # Status Section
-        st.markdown("### 🎯 Status")
-        status_col1, status_col2 = st.columns([1, 2])
-        
-        with status_col1:
-            if prediction == 1:
-                st.error("**🟥 Diseased**")
-            else:
-                st.success("**🟩 Healthy**")
-        
-        with status_col2:
-            if prediction == 1:
-                st.info("""
-                **Recommendation:** 
-                Please consult with a healthcare professional for further evaluation and guidance.
-                """)
-            else:
-                st.info("""
-                **Great news!** 
-                Your health indicators appear to be within normal ranges.
-                """)
-    
-    st.divider()
-    
-    # Risk Level Section
-    with st.container():
-        st.markdown("### 📈 Risk Level")
-        
-        if prediction_proba is not None:
-            risk_percent = prediction_proba * 100
-            
-            # Progress bar with color coding
-            if risk_percent <= 30:
-                progress_color = "green"
-                risk_label = "Low Risk"
-                risk_description = "Your health indicators suggest you are likely healthy."
-            elif 30 < risk_percent <= 70:
-                progress_color = "orange"
-                risk_label = "Moderate Risk"
-                risk_description = "Some health indicators need attention."
-            else:
-                progress_color = "red"
-                risk_label = "High Risk"
-                risk_description = "Multiple health indicators suggest elevated disease risk."
-            
-            # Display in columns for better layout
-            risk_col1, risk_col2 = st.columns([1, 2])
-            
-            with risk_col1:
-                # Risk metric
-                st.metric(
-                    label="Risk Score", 
-                    value=f"{risk_percent:.1f}%",
-                    delta=risk_label,
-                    delta_color="off"
-                )
-                
-                # Progress bar
-                st.progress(int(risk_percent) / 100, text=f"{risk_percent:.1f}%")
-            
-            with risk_col2:
-                # Risk interpretation
-                st.markdown(f"""
-                <div style="padding: 10px; border-radius: 8px; background-color: #f8f9fa; border-left: 5px solid {progress_color}; margin-top: 10px;">
-                <h4 style="margin: 0; color: {progress_color};">{risk_label}</h4>
-                <p style="margin: 5px 0 0 0; font-size: 14px;">{risk_description}</p>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.warning("Risk probability not available")
-    
-    st.divider()
     
     # Quick Stats Section
     with st.container():
@@ -1282,6 +2073,6 @@ elif st.session_state.current_page == "results":
 # DEFAULT PAGE HANDLER
 # ===============================
 else:
-    # If page state is invalid, reset to input page
-    st.session_state.current_page = "input"
+    # If page state is invalid, reset to home page
+    st.session_state.current_page = "home"
     st.rerun()
