@@ -33,6 +33,8 @@ y = df["target"]
 num_cols = X.select_dtypes(include=[np.number]).columns.tolist()
 cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
 
+#Normalization
+
 # Scale numeric features
 scaler = StandardScaler()
 X[num_cols] = scaler.fit_transform(X[num_cols])
@@ -50,7 +52,8 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-# Handle class imbalance
+# Handle class imbalance using SMOTE (Synthetic Minority Oversampling Technique)
+# 50% - 50%  
 smote = SMOTE(random_state=42)
 X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
 print("Resampled target distribution:\n", pd.Series(y_train_res).value_counts(normalize=True))
