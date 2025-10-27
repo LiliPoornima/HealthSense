@@ -1,13 +1,18 @@
 # src/train_model.py
 
+
+
+
 import pandas as pd
 import numpy as np
 import os
 import joblib
+import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, classification_report
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
@@ -89,11 +94,15 @@ for name, model in models.items():
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else y_pred
     
+    #calculate metrics (accuracy, f1_score, roc_auc)
+
     acc = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred)
     f1_class1 = f1_score(y_test, y_pred, pos_label=1)
     roc = roc_auc_score(y_test, y_proba)
     
+
+
     print(f"Accuracy: {acc:.4f}")
     print(f"F1 Score (overall): {f1:.4f}")
     print(f"F1 Score (diseased=1): {f1_class1:.4f}")
@@ -111,3 +120,14 @@ print(f"\nBest model: {best_model_name} (F1 for diseased = {best_f1:.4f})")
 joblib_file = os.path.join(MODELS_DIR, f"best_model_{best_model_name}.pkl")
 joblib.dump(best_model, joblib_file)
 print(f"Best model saved as {joblib_file}")
+
+
+
+# Generate and display confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Healthy", "Diseased"])
+
+plt.figure(figsize=(5, 4))
+disp.plot(cmap='Blues', values_format='d')
+plt.title(f"Confusion Matrix - {name}")
+plt.show()
