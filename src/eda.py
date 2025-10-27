@@ -1,4 +1,6 @@
 # src/eda.py
+#EDA - Exploratory Data Analysis
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -49,4 +51,13 @@ sns.countplot(x="target", data=df)
 plt.title("Class Distribution")
 plt.show()
 
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# heatmap of missing values
+plt.figure(figsize=(22, 6))
+sns.heatmap(df.isnull(), cbar=False, cmap='coolwarm')
+plt.title("Missing Values Heatmap After Preprocessing")
+plt.show()
 

@@ -1199,10 +1199,10 @@ elif st.session_state.show_history:
     st.title("📜 Prediction History - HealthSense")
     st.markdown("### Track Your Health Journey Over Time")
     st.divider()
-    
+
     if len(st.session_state.prediction_history) == 0:
         st.info("📭 No previous predictions available. Complete your first analysis to begin tracking your health data.")
-        
+
         col1, col2, col3 = st.columns([2, 1, 2])
         with col2:
             if st.button("➕ New Prediction", use_container_width=True):
@@ -1214,32 +1214,32 @@ elif st.session_state.show_history:
         for idx, record in enumerate(reversed(st.session_state.prediction_history)):
             with st.expander(f"🔍 Prediction #{len(st.session_state.prediction_history) - idx} - {record['timestamp']}", expanded=(idx == 0)):
                 col1, col2, col3 = st.columns(3)
-                
+
                 with col1:
                     st.markdown("**Status**")
-                    if record['prediction'] == 1:
+                    if int(record.get('prediction', 0)) == 1:
                         st.error("🟥 Diseased")
                     else:
                         st.success("🟩 Healthy")
-                
+
                 with col2:
                     st.markdown("**Risk Score**")
-                    if record['probability'] is not None:
+                    if record.get('probability') is not None:
                         st.metric("", f"{record['probability'] * 100:.1f}%")
-                
+
                 with col3:
                     st.markdown("**Features**")
-                    st.metric("", len(record['user_input']))
-                
+                    st.metric("", len(record.get('user_input', {})))
+
                 st.divider()
-                
+
                 # Show some key inputs with units
                 st.markdown("**Key Health Indicators:**")
                 key_features = ['age', 'bmi', 'blood_pressure', 'heart_rate', 'sleep_hours']
                 display_data = {}
 
                 for feature in key_features:
-                    if feature in record['user_input']:
+                    if feature in record.get('user_input', {}):
                         value = record['user_input'][feature]
                         unit = FEATURE_UNITS.get(feature, '')
                         label = feature.replace('_', ' ').title()
@@ -1256,15 +1256,16 @@ elif st.session_state.show_history:
                                 st.metric(key, f"{value:.1f}")
                             else:
                                 st.metric(key, value)
-        
+
         st.divider()
-        
+
         # Clear history button
         col1, col2, col3 = st.columns([2, 1, 2])
         with col2:
             if st.button("🗑️ Clear History", use_container_width=True):
                 st.session_state.prediction_history = []
                 st.rerun()
+
 
 # ===============================
 # PAGE NAVIGATION - INPUT PAGE
@@ -1391,6 +1392,9 @@ elif st.session_state.current_page == "input":
         "work_hours", "daily_steps", "meals_per_day", "physical_activity"
     ]
     
+
+#feature engineering: BMI and scaled BMI
+
     # Auto-calculate BMI and scaled BMI from height (cm) and weight (kg)
     height_cm = st.session_state.user_input.get("height")
     weight_kg = st.session_state.user_input.get("weight")
@@ -1833,6 +1837,21 @@ elif st.session_state.current_page == "results":
     
     st.divider()
    
+
+   # ===============================
+    # Save to Prediction History
+    # ===============================
+    from datetime import datetime
+
+    if 'prediction_history' not in st.session_state:
+        st.session_state.prediction_history = []
+
+    st.session_state.prediction_history.append({
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "prediction": prediction,
+        "probability": prediction_proba,
+        "user_input": user_input
+    })
 
     
     # ===============================

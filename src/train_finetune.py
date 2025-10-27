@@ -70,8 +70,7 @@ y_sample = y_train_res.loc[X_sample.index]
 print("Using sample for tuning:", X_sample.shape)
 
 
-# Model Fine-Tuning
-
+# Model Fine-Tuning with cross validation (cv)
 
 # Logistic Regression
 log_reg = LogisticRegression(max_iter=1000, random_state=42)
