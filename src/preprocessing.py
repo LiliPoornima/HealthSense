@@ -5,7 +5,6 @@ from sklearn.impute import SimpleImputer
 import os
 
 
-
 # Path relative to preprocessing.py
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # src/
 RAW_PATH = os.path.join(BASE_DIR, "..", "data", "raw", "health_lifestyle_classification.csv")
@@ -96,3 +95,6 @@ print(f"Preprocessed dataset saved at {PROCESSED_PATH}")
 # Optional: check class balance and missing values
 print("Class balance:\n", df["target"].value_counts(normalize=True))
 print("\nMissing values:\n", df.isnull().sum())
+
+
+
